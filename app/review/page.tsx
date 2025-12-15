@@ -1,18 +1,36 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useSession } from "@/contexts/SessionContext";
+import { getActiveEvent } from "@/lib/events";
 import { PhotoGrid } from "@/components/review/PhotoGrid";
 import { Button } from "@/components/ui/Button";
-
-const PHOTOS_PER_SESSION = 3;
+import type { Event } from "@/types";
 
 export default function ReviewPage() {
   const router = useRouter();
   const { photos, clearPhotos } = useSession();
+  const [event, setEvent] = useState<Event | null>(null);
+  const [isLoadingEvent, setIsLoadingEvent] = useState(true);
 
+  // Load active event settings
+  useEffect(() => {
+    const loadEvent = async () => {
+      try {
+        const activeEvent = await getActiveEvent();
+        setEvent(activeEvent);
+      } catch (error) {
+        console.error("Error loading event:", error);
+      } finally {
+        setIsLoadingEvent(false);
+      }
+    };
+    loadEvent();
+  }, []);
+
+  const PHOTOS_PER_SESSION = event?.photos_per_session || 3;
   const isComplete = photos.length >= PHOTOS_PER_SESSION;
 
   // Redirect if no photos
@@ -28,7 +46,7 @@ export default function ReviewPage() {
   };
 
   const handleContinue = () => {
-    router.push("/composite");
+    router.push("/composite-v2");
   };
 
   if (photos.length === 0) {

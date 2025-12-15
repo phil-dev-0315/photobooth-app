@@ -6,22 +6,42 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useCamera } from "@/hooks/useCamera";
 import { useCountdown } from "@/hooks/useCountdown";
 import { useSession } from "@/contexts/SessionContext";
+import { getActiveEvent } from "@/lib/events";
 import { CameraPreview } from "@/components/capture/CameraPreview";
 import { Countdown } from "@/components/capture/Countdown";
 import { StartSessionButton } from "@/components/capture/CaptureButton";
 import { FlashOverlay, CaptureIndicator } from "@/components/capture/FlashOverlay";
 import { Button } from "@/components/ui/Button";
-import { CapturedPhoto } from "@/types";
+import { CapturedPhoto, Event } from "@/types";
 
 type CapturePhase = "ready" | "countdown" | "capturing" | "between" | "complete";
 
-const PHOTOS_PER_SESSION = 3;
-const COUNTDOWN_SECONDS = 8;
 const BETWEEN_PHOTOS_DELAY = 1500; // ms
 
 export default function CapturePage() {
   const router = useRouter();
   const { addPhoto, clearPhotos, photos } = useSession();
+  const [event, setEvent] = useState<Event | null>(null);
+  const [isLoadingEvent, setIsLoadingEvent] = useState(true);
+
+  // Load active event settings
+  useEffect(() => {
+    const loadEvent = async () => {
+      try {
+        const activeEvent = await getActiveEvent();
+        setEvent(activeEvent);
+      } catch (error) {
+        console.error("Error loading event:", error);
+      } finally {
+        setIsLoadingEvent(false);
+      }
+    };
+    loadEvent();
+  }, []);
+
+  // Use event settings or defaults
+  const PHOTOS_PER_SESSION = event?.photos_per_session || 3;
+  const COUNTDOWN_SECONDS = event?.countdown_seconds || 5;
 
   const [phase, setPhase] = useState<CapturePhase>("ready");
   const [isFlashing, setIsFlashing] = useState(false);
@@ -146,6 +166,18 @@ export default function CapturePage() {
     clearPhotos();
     router.push("/");
   };
+
+  // Loading state
+  if (isLoadingEvent) {
+    return (
+      <main className="full-screen flex flex-col items-center justify-center bg-gray-900">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+          <p className="text-gray-400">Loading event settings...</p>
+        </div>
+      </main>
+    );
+  }
 
   // Error state
   if (error) {

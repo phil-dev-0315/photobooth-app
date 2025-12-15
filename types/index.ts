@@ -1,59 +1,53 @@
 // Event types
-export type EventType = "wedding" | "birthday" | "christening" | "corporate" | "other";
-
 export interface Event {
   id: string;
   name: string;
   event_date: string | null;
-  event_type: EventType | null;
+  event_type: 'wedding' | 'birthday' | 'christening' | 'corporate' | 'other';
   is_active: boolean;
   photos_per_session: number;
   countdown_seconds: number;
   message_enabled: boolean;
   message_char_limit: number;
-  default_layout: LayoutType;
+  default_layout: string;
   logo_url: string | null;
   created_at: string;
   updated_at: string;
 }
 
-// Layout types
-export type LayoutType = "3-vertical" | "2x2" | "single" | "4-strip";
+export interface EventFormData {
+  name: string;
+  event_date: string | null;
+  event_type: 'wedding' | 'birthday' | 'christening' | 'corporate' | 'other';
+  is_active: boolean;
+  photos_per_session: number;
+  countdown_seconds: number;
+  message_enabled: boolean;
+  message_char_limit: number;
+  default_layout: string;
+}
 
+// Placeholder for photo positioning
+export interface PhotoPlaceholder {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+// Event layout types
 export interface EventLayout {
   id: string;
   event_id: string;
-  layout_type: LayoutType;
+  layout_type: string;
   frame_url: string | null;
   include_message: boolean;
   include_logo: boolean;
   is_default: boolean;
+  width: number;
+  height: number;
+  placeholders: PhotoPlaceholder[];
   created_at: string;
-}
-
-export interface LayoutConfig {
-  type: LayoutType;
-  photoCount: number;
-  photoPositions: PhotoPosition[];
-  logoPosition: Position | null;
-  messagePosition: Position | null;
-  width: number;
-  height: number;
-}
-
-export interface PhotoPosition {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  rotation?: number;
-}
-
-export interface Position {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
 }
 
 // Session types
@@ -67,6 +61,12 @@ export interface Session {
   created_at: string;
 }
 
+export interface SessionWithPhotos extends Session {
+  photos: Photo[];
+  event?: Event;
+}
+
+// Photo types
 export interface Photo {
   id: string;
   session_id: string;
@@ -75,29 +75,14 @@ export interface Photo {
   created_at: string;
 }
 
-// Capture flow types
-export type CapturePhase = "idle" | "countdown" | "capturing" | "review" | "complete";
-
-export interface CaptureState {
-  phase: CapturePhase;
-  photos: CapturedPhoto[];
-  currentPhotoIndex: number;
-  countdownValue: number;
-}
-
+// Captured photo (client-side before upload)
 export interface CapturedPhoto {
   id: string;
   dataUrl: string;
   timestamp: number;
 }
 
-// Camera types
-export interface CameraConfig {
-  facingMode: "user" | "environment";
-  width: number;
-  height: number;
-}
-
+// Camera state for the camera hook
 export interface CameraState {
   isReady: boolean;
   isCapturing: boolean;
@@ -105,11 +90,7 @@ export interface CameraState {
   stream: MediaStream | null;
 }
 
-// UI types
-export type ButtonVariant = "primary" | "secondary" | "outline" | "ghost";
-export type ButtonSize = "sm" | "md" | "lg";
-
-// Session context types
+// Session context value
 export interface SessionContextValue {
   eventId: string | null;
   event: Event | null;
@@ -121,4 +102,28 @@ export interface SessionContextValue {
   clearPhotos: () => void;
   setMessage: (message: string | null) => void;
   resetSession: () => void;
+}
+
+// Button types
+export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
+export type ButtonSize = 'sm' | 'md' | 'lg';
+
+// Storage types
+export interface UploadResult {
+  url: string;
+  path: string;
+}
+
+export interface StorageBucket {
+  name: 'frames' | 'logos' | 'photos' | 'composites';
+  publicAccess: boolean;
+}
+
+// Admin types
+export interface AdminStats {
+  totalEvents: number;
+  activeEvents: number;
+  totalSessions: number;
+  todaySessions: number;
+  totalPhotos: number;
 }

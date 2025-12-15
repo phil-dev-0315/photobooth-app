@@ -1,0 +1,235 @@
+import React, { useState } from 'react';
+import { Input } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
+import { Button } from '@/components/ui/Button';
+import type { Event, EventFormData } from '@/types';
+
+interface EventFormProps {
+  initialData?: Event;
+  onSubmit: (data: EventFormData) => Promise<void>;
+  onCancel: () => void;
+  isLoading?: boolean;
+}
+
+export function EventForm({ initialData, onSubmit, onCancel, isLoading }: EventFormProps) {
+  const [formData, setFormData] = useState<EventFormData>({
+    name: initialData?.name || '',
+    event_date: initialData?.event_date || null,
+    event_type: initialData?.event_type || 'wedding',
+    is_active: initialData?.is_active || false,
+    photos_per_session: initialData?.photos_per_session || 3,
+    countdown_seconds: initialData?.countdown_seconds || 8,
+    message_enabled: initialData?.message_enabled || false,
+    message_char_limit: initialData?.message_char_limit || 100,
+    default_layout: initialData?.default_layout || '3-vertical',
+  });
+
+  const [errors, setErrors] = useState<Partial<Record<keyof EventFormData, string>>>({});
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    const { name, value, type } = e.target;
+
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === 'checkbox'
+        ? (e.target as HTMLInputElement).checked
+        : type === 'number'
+        ? parseInt(value)
+        : value,
+    }));
+
+    // Clear error for this field
+    if (errors[name as keyof EventFormData]) {
+      setErrors((prev) => ({ ...prev, [name]: undefined }));
+    }
+  };
+
+  const validate = (): boolean => {
+    const newErrors: Partial<Record<keyof EventFormData, string>> = {};
+
+    if (!formData.name.trim()) {
+      newErrors.name = 'Event name is required';
+    }
+
+    if (formData.photos_per_session < 1 || formData.photos_per_session > 10) {
+      newErrors.photos_per_session = 'Must be between 1 and 10';
+    }
+
+    if (formData.countdown_seconds < 3 || formData.countdown_seconds > 30) {
+      newErrors.countdown_seconds = 'Must be between 3 and 30';
+    }
+
+    if (formData.message_char_limit < 50 || formData.message_char_limit > 500) {
+      newErrors.message_char_limit = 'Must be between 50 and 500';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!validate()) return;
+
+    await onSubmit(formData);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Basic Information */}
+      <div className="bg-white rounded-lg shadow p-6 space-y-4">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h3>
+
+        <Input
+          label="Event Name"
+          name="name"
+          value={formData.name}
+          onChange={handleChange}
+          error={errors.name}
+          placeholder="e.g., John & Jane's Wedding"
+          required
+        />
+
+        <Input
+          label="Event Date"
+          name="event_date"
+          type="date"
+          value={formData.event_date || ''}
+          onChange={handleChange}
+          error={errors.event_date}
+        />
+
+        <Select
+          label="Event Type"
+          name="event_type"
+          value={formData.event_type}
+          onChange={handleChange}
+          options={[
+            { value: 'wedding', label: 'Wedding' },
+            { value: 'birthday', label: 'Birthday' },
+            { value: 'christening', label: 'Christening' },
+            { value: 'corporate', label: 'Corporate' },
+            { value: 'other', label: 'Other' },
+          ]}
+        />
+
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="is_active"
+            name="is_active"
+            checked={formData.is_active}
+            onChange={handleChange}
+            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+          />
+          <label htmlFor="is_active" className="text-sm font-medium text-gray-700">
+            Set as active event
+          </label>
+        </div>
+      </div>
+
+      {/* Capture Settings */}
+      <div className="bg-white rounded-lg shadow p-6 space-y-4">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Capture Settings</h3>
+
+        <Input
+          label="Photos Per Session"
+          name="photos_per_session"
+          type="number"
+          min={1}
+          max={10}
+          value={formData.photos_per_session}
+          onChange={handleChange}
+          error={errors.photos_per_session}
+          helperText="Number of photos to capture in each session (1-10)"
+        />
+
+        <Input
+          label="Countdown Duration (seconds)"
+          name="countdown_seconds"
+          type="number"
+          min={3}
+          max={30}
+          value={formData.countdown_seconds}
+          onChange={handleChange}
+          error={errors.countdown_seconds}
+          helperText="Countdown time between photos (3-30 seconds)"
+        />
+
+        <Select
+          label="Default Layout"
+          name="default_layout"
+          value={formData.default_layout}
+          onChange={handleChange}
+          options={[
+            { value: '3-vertical', label: '3-Photo Vertical Strip' },
+            { value: '2x2', label: '2x2 Grid (Future)' },
+            { value: 'single', label: 'Single Photo (Future)' },
+          ]}
+        />
+      </div>
+
+      {/* Message Settings */}
+      <div className="bg-white rounded-lg shadow p-6 space-y-4">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Message Settings</h3>
+
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="message_enabled"
+            name="message_enabled"
+            checked={formData.message_enabled}
+            onChange={handleChange}
+            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+          />
+          <label htmlFor="message_enabled" className="text-sm font-medium text-gray-700">
+            Enable message feature
+          </label>
+        </div>
+
+        {formData.message_enabled && (
+          <Input
+            label="Message Character Limit"
+            name="message_char_limit"
+            type="number"
+            min={50}
+            max={500}
+            value={formData.message_char_limit}
+            onChange={handleChange}
+            error={errors.message_char_limit}
+            helperText="Maximum characters allowed in messages (50-500)"
+          />
+        )}
+      </div>
+
+      {/* Form Actions */}
+      <div className="flex gap-3 justify-end">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onCancel}
+          disabled={isLoading}
+        >
+          Cancel
+        </Button>
+        <Button
+          type="submit"
+          variant="primary"
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <span className="flex items-center gap-2">
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              {initialData ? 'Updating...' : 'Creating...'}
+            </span>
+          ) : (
+            initialData ? 'Update Event' : 'Create Event'
+          )}
+        </Button>
+      </div>
+    </form>
+  );
+}

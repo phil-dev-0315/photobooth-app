@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSession } from "@/contexts/SessionContext";
 import { Button } from "@/components/ui/Button";
+import { toPng } from "html-to-image";
+import { QRCodeSVG } from "qrcode.react";
 
 const PHOTOS_PER_SESSION = 3;
 
@@ -14,7 +16,11 @@ export default function CompositePage() {
   const [showNote, setShowNote] = useState(false);
   const [noteText, setNoteText] = useState(message || "");
   const [isDownloading, setIsDownloading] = useState(false);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [qrCodeData, setQrCodeData] = useState<string>("");
+  const [showQR, setShowQR] = useState(false);
+  const [isGeneratingQR, setIsGeneratingQR] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string>("");
+  const captureRef = useRef<HTMLDivElement>(null);
 
   // Redirect if no photos
   useEffect(() => {
@@ -45,203 +51,104 @@ export default function CompositePage() {
     setMessage(text);
   };
 
-  // Helper function to draw rounded rectangles
-  const roundRect = (
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    radius: number
-  ) => {
-    ctx.beginPath();
-    ctx.moveTo(x + radius, y);
-    ctx.lineTo(x + width - radius, y);
-    ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
-    ctx.lineTo(x + width, y + height - radius);
-    ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-    ctx.lineTo(x + radius, y + height);
-    ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
-    ctx.lineTo(x, y + radius);
-    ctx.quadraticCurveTo(x, y, x + radius, y);
-    ctx.closePath();
-  };
-
-  // Generate and download the composite image
-  const handleDownload = useCallback(async () => {
-    if (photos.length < PHOTOS_PER_SESSION) return;
-
-    setIsDownloading(true);
+  // Capture the photo strip using html-to-image
+  const capturePhotoStrip = async (includeNote: boolean): Promise<string | null> => {
+    if (!captureRef.current) return null;
 
     try {
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-
-      // Photo strip dimensions (2:3 aspect ratio photos, stacked vertically)
-      const stripPadding = 40;
-      const photoWidth = 300;
-      const photoHeight = 400;
-      const photoGap = 20;
-      const bottomPadding = 80; // Space for date
-
-      canvas.width = photoWidth + stripPadding * 2;
-      canvas.height =
-        stripPadding +
-        (photoHeight * PHOTOS_PER_SESSION) +
-        (photoGap * (PHOTOS_PER_SESSION - 1)) +
-        bottomPadding;
-
-      // Draw white background (polaroid style)
-      ctx.fillStyle = "#FFFFFF";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      // Load and draw photos
-      const loadImage = (src: string): Promise<HTMLImageElement> => {
-        return new Promise((resolve, reject) => {
-          const img = new Image();
-          img.onload = () => resolve(img);
-          img.onerror = reject;
-          img.src = src;
-        });
-      };
-
-      for (let i = 0; i < photos.length; i++) {
-        const img = await loadImage(photos[i].dataUrl);
-        const y = stripPadding + i * (photoHeight + photoGap);
-
-        // Draw photo with cover fit
-        const imgAspect = img.width / img.height;
-        const targetAspect = photoWidth / photoHeight;
-
-        let sx = 0, sy = 0, sw = img.width, sh = img.height;
-
-        if (imgAspect > targetAspect) {
-          // Image is wider - crop sides
-          sw = img.height * targetAspect;
-          sx = (img.width - sw) / 2;
-        } else {
-          // Image is taller - crop top/bottom
-          sh = img.width / targetAspect;
-          sy = (img.height - sh) / 2;
-        }
-
-        ctx.drawImage(img, sx, sy, sw, sh, stripPadding, y, photoWidth, photoHeight);
+      // Temporarily set note visibility if needed
+      const originalShowNote = showNote;
+      if (includeNote && !showNote) {
+        setShowNote(true);
+        // Wait for animation to complete
+        await new Promise(resolve => setTimeout(resolve, 500));
+      } else if (!includeNote && showNote) {
+        setShowNote(false);
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
 
-      // Draw date at bottom
-      ctx.fillStyle = "#374151";
-      ctx.font = "500 18px system-ui, -apple-system, sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillText(
-        getCurrentDate(),
-        canvas.width / 2,
-        canvas.height - 30
-      );
+      // Use html-to-image which handles modern CSS better
+      const dataUrl = await toPng(captureRef.current, {
+        cacheBust: true,
+        pixelRatio: 2,
+        backgroundColor: "#f3f4f6",
+      });
 
-      // If showing note, create a combined image with note card in front
-      if (showNote && noteText.trim()) {
-        const finalCanvas = document.createElement("canvas");
-        const finalCtx = finalCanvas.getContext("2d");
-        if (!finalCtx) return;
+      // Restore original state
+      if (originalShowNote !== showNote) {
+        setShowNote(originalShowNote);
+      }
 
-        // Note card dimensions (smaller than the strip)
-        const noteCardWidth = 280;
-        const noteCardHeight = 320;
-        const notePadding = 16;
-        const noteInnerPadding = 24;
+      return dataUrl;
+    } catch (error) {
+      console.error("Error capturing photo strip:", error);
+      return null;
+    }
+  };
 
-        // Final canvas size to fit both with some overlap
-        finalCanvas.width = canvas.width + 40;
-        finalCanvas.height = canvas.height + 40;
-
-        // Draw photo strip first (in background)
-        finalCtx.drawImage(canvas, 20, 20);
-
-        // Calculate note position (centered over the strip)
-        const noteX = (finalCanvas.width - noteCardWidth) / 2;
-        const noteY = (finalCanvas.height - noteCardHeight) / 2;
-
-        // Draw note card white background
-        finalCtx.fillStyle = "#FFFFFF";
-        finalCtx.shadowColor = "rgba(0, 0, 0, 0.2)";
-        finalCtx.shadowBlur = 20;
-        finalCtx.shadowOffsetX = 0;
-        finalCtx.shadowOffsetY = 4;
-        roundRect(finalCtx, noteX, noteY, noteCardWidth, noteCardHeight, 8);
-        finalCtx.fill();
-
-        // Reset shadow
-        finalCtx.shadowColor = "transparent";
-        finalCtx.shadowBlur = 0;
-        finalCtx.shadowOffsetX = 0;
-        finalCtx.shadowOffsetY = 0;
-
-        // Draw cream inner area
-        finalCtx.fillStyle = "#FAF8F5";
-        roundRect(
-          finalCtx,
-          noteX + notePadding,
-          noteY + notePadding,
-          noteCardWidth - notePadding * 2,
-          noteCardHeight - notePadding * 2,
-          4
-        );
-        finalCtx.fill();
-
-        // Draw note text (centered)
-        finalCtx.fillStyle = "#374151";
-        finalCtx.font = "400 28px Georgia, serif";
-        finalCtx.textAlign = "center";
-
-        // Word wrap the note text
-        const maxWidth = noteCardWidth - notePadding * 2 - noteInnerPadding * 2;
-        const words = noteText.split(" ");
-        let line = "";
-        let textY = noteY + notePadding + noteInnerPadding + 40;
-        const lineHeight = 36;
-
-        for (const word of words) {
-          const testLine = line + word + " ";
-          const metrics = finalCtx.measureText(testLine);
-          if (metrics.width > maxWidth && line !== "") {
-            finalCtx.fillText(line.trim(), noteX + noteCardWidth / 2, textY);
-            line = word + " ";
-            textY += lineHeight;
-          } else {
-            line = testLine;
-          }
-        }
-        finalCtx.fillText(line.trim(), noteX + noteCardWidth / 2, textY);
-
-        // Draw date at bottom right of note
-        finalCtx.fillStyle = "#6B7280";
-        finalCtx.font = "400 20px Georgia, serif";
-        finalCtx.textAlign = "right";
-        finalCtx.fillText(
-          getCurrentDate(),
-          noteX + noteCardWidth - notePadding - noteInnerPadding,
-          noteY + noteCardHeight - notePadding - noteInnerPadding
-        );
-
-        // Download final canvas
+  // Download strip only
+  const handleDownloadStripOnly = async () => {
+    setIsDownloading(true);
+    setErrorMessage("");
+    try {
+      const dataUrl = await capturePhotoStrip(false);
+      if (dataUrl) {
         const link = document.createElement("a");
-        link.download = `photobooth-${Date.now()}.png`;
-        link.href = finalCanvas.toDataURL("image/png");
+        link.download = `photobooth-strip-${Date.now()}.png`;
+        link.href = dataUrl;
         link.click();
       } else {
-        // Download just the photo strip
-        const link = document.createElement("a");
-        link.download = `photobooth-${Date.now()}.png`;
-        link.href = canvas.toDataURL("image/png");
-        link.click();
+        setErrorMessage("Failed to capture photo strip. Please try again.");
       }
     } catch (error) {
-      console.error("Error generating composite:", error);
+      console.error("Error downloading strip:", error);
+      setErrorMessage("Error downloading image. Please try again.");
     } finally {
       setIsDownloading(false);
     }
-  }, [photos, showNote, noteText]);
+  };
+
+  // Download with note
+  const handleDownloadWithNote = async () => {
+    setIsDownloading(true);
+    setErrorMessage("");
+    try {
+      const dataUrl = await capturePhotoStrip(true);
+      if (dataUrl) {
+        const link = document.createElement("a");
+        link.download = `photobooth-with-note-${Date.now()}.png`;
+        link.href = dataUrl;
+        link.click();
+      } else {
+        setErrorMessage("Failed to capture image. Please try again.");
+      }
+    } catch (error) {
+      console.error("Error downloading with note:", error);
+      setErrorMessage("Error downloading image. Please try again.");
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  // Generate QR code
+  const handleGenerateQR = async () => {
+    setIsGeneratingQR(true);
+    setErrorMessage("");
+    try {
+      const dataUrl = await capturePhotoStrip(showNote);
+      if (dataUrl) {
+        setQrCodeData(dataUrl);
+        setShowQR(true);
+      } else {
+        setErrorMessage("Failed to generate QR code. Please try again.");
+      }
+    } catch (error) {
+      console.error("Error generating QR code:", error);
+      setErrorMessage("Error generating QR code. Please try again.");
+    } finally {
+      setIsGeneratingQR(false);
+    }
+  };
 
   // Start new session
   const handleNewSession = () => {
@@ -255,7 +162,7 @@ export default function CompositePage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-100 flex flex-col">
+    <main className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col">
       {/* Header */}
       <motion.header
         initial={{ opacity: 0, y: -20 }}
@@ -274,102 +181,206 @@ export default function CompositePage() {
       </motion.header>
 
       {/* Photo Strip Display */}
-      <div className="flex-1 overflow-auto px-4 py-6">
-        <div className="max-w-md mx-auto flex flex-col items-center">
-          {/* Tap instruction */}
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.5 }}
-            className="text-sm text-gray-500 mb-4"
-          >
-            Tap the strip to {showNote ? "hide" : "show"} message
-          </motion.p>
-
-          {/* Photo Strip Container */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ type: "spring", damping: 20 }}
-            onClick={handleToggle}
-            className="relative cursor-pointer"
-          >
-            {/* Photo Strip */}
+      <div className="flex-1 overflow-auto px-4 py-8">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex gap-8 items-center justify-center">
+            {/* Photo Strip and Note Container */}
             <div
-              className="relative bg-white rounded-lg shadow-xl p-4"
-              style={{ width: "280px" }}
+              ref={captureRef}
+              className="relative flex items-center justify-center"
+              style={{ minHeight: "700px", width: "800px" }}
             >
-              {/* Photos */}
-              <div className="space-y-3">
-                {photos.map((photo, index) => (
-                  <motion.div
-                    key={photo.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    className="aspect-[3/4] bg-gray-200 rounded overflow-hidden"
-                  >
-                    <img
-                      src={photo.dataUrl}
-                      alt={`Photo ${index + 1}`}
-                      className="w-full h-full object-cover"
+            {/* Photo Strip */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, rotate: -3 }}
+              animate={{
+                opacity: 1,
+                scale: 1,
+                rotate: -3,
+                y: 0
+              }}
+              transition={{
+                type: "spring",
+                stiffness: 260,
+                damping: 20
+              }}
+              onClick={handleToggle}
+              className="relative cursor-pointer"
+              style={{
+                transformOrigin: "center center",
+                zIndex: showNote ? 5 : 10
+              }}
+            >
+              {/* Film strip with perforated edges */}
+              <div className="relative bg-white shadow-2xl" style={{ width: "340px" }}>
+                {/* Perforated edges */}
+                <div className="absolute left-0 top-0 bottom-0 flex flex-col justify-around py-3">
+                  {[...Array(24)].map((_, i) => (
+                    <div
+                      key={`left-${i}`}
+                      className="w-3 h-3 rounded-full bg-gray-200 border border-gray-300"
+                      style={{ marginLeft: "-6px" }}
                     />
-                  </motion.div>
-                ))}
-              </div>
+                  ))}
+                </div>
+                <div className="absolute right-0 top-0 bottom-0 flex flex-col justify-around py-3">
+                  {[...Array(24)].map((_, i) => (
+                    <div
+                      key={`right-${i}`}
+                      className="w-3 h-3 rounded-full bg-gray-200 border border-gray-300"
+                      style={{ marginRight: "-6px" }}
+                    />
+                  ))}
+                </div>
 
-              {/* Date */}
-              <div className="mt-4 text-center">
-                <p className="text-gray-600 font-medium text-sm italic">
-                  {getCurrentDate()}
-                </p>
+                {/* Inner content */}
+                <div className="px-8 py-6">
+                  {/* Photos */}
+                  <div className="space-y-2">
+                    {photos.map((photo, index) => (
+                      <motion.div
+                        key={photo.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.1 }}
+                        className="aspect-[4/3] bg-gray-200 overflow-hidden"
+                      >
+                        <img
+                          src={photo.dataUrl}
+                          alt={`Photo ${index + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                      </motion.div>
+                    ))}
+                  </div>
+
+                  {/* Branding Section */}
+                  <div className="mt-4 text-center space-y-1">
+                    {/* Camera Icon */}
+                    <div className="flex justify-center">
+                      <svg
+                        className="w-10 h-10 text-blue-600"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/>
+                        <path d="M12 9c-1.65 0-3 1.35-3 3s1.35 3 3 3 3-1.35 3-3-1.35-3-3-3z"/>
+                      </svg>
+                    </div>
+
+                    {/* Title */}
+                    <h2 className="text-xl font-semibold text-gray-700">
+                      Memories
+                    </h2>
+
+                    {/* Date */}
+                    <p className="text-sm text-gray-600">
+                      {getCurrentDate()}
+                    </p>
+
+                    {/* Hashtag */}
+                    <p className="text-sm text-blue-600 font-medium">
+                      #SummerVibes
+                    </p>
+                  </div>
+                </div>
               </div>
+            </motion.div>
+
+            {/* Polaroid Note Card */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, rotate: 5 }}
+              animate={{
+                opacity: 1,
+                scale: 1,
+                rotate: 5,
+                x: showNote ? 50 : -180,
+                y: showNote ? -30 : 180,
+                zIndex: showNote ? 10 : 5
+              }}
+              transition={{
+                type: "spring",
+                stiffness: 200,
+                damping: 18
+              }}
+              onClick={handleToggle}
+              className="absolute cursor-pointer"
+              style={{
+                width: "380px",
+                transformOrigin: "center center"
+              }}
+            >
+              {/* Polaroid card */}
+              <div className="bg-white shadow-2xl p-4">
+                {/* Cream inner area */}
+                <div
+                  className="flex flex-col justify-center items-center"
+                  style={{
+                    backgroundColor: "#FFF9E6",
+                    minHeight: "340px",
+                    padding: "32px"
+                  }}
+                >
+                  {/* Note text area */}
+                  <textarea
+                    value={noteText}
+                    onChange={handleNoteChange}
+                    onClick={(e) => e.stopPropagation()}
+                    placeholder="Best summer ever! These memories will last forever"
+                    className="w-full flex-1 bg-transparent text-gray-700 text-center text-2xl italic leading-relaxed resize-none focus:outline-none placeholder:text-gray-500"
+                    style={{
+                      fontFamily: "Georgia, serif",
+                      minHeight: "200px"
+                    }}
+                    maxLength={150}
+                  />
+
+                  {/* Toggle instruction */}
+                  <p className="text-gray-500 text-base mt-4" style={{ fontFamily: "Georgia, serif" }}>
+                    ~ Click to toggle ~
+                  </p>
+                </div>
+              </div>
+            </motion.div>
             </div>
 
-            {/* Note Card (appears in front when visible) */}
+            {/* QR Code Card */}
             <AnimatePresence>
-              {showNote && (
+              {showQR && qrCodeData && (
                 <motion.div
-                  initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                  transition={{ type: "spring", damping: 20 }}
-                  className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20"
-                  style={{ width: "260px" }}
+                  initial={{ opacity: 0, x: 50, scale: 0.9 }}
+                  animate={{ opacity: 1, x: 0, scale: 1 }}
+                  exit={{ opacity: 0, x: 50, scale: 0.9 }}
+                  transition={{ type: "spring", stiffness: 200, damping: 20 }}
+                  className="bg-white rounded-lg shadow-2xl p-6"
+                  style={{ width: "300px" }}
                 >
-                  {/* Polaroid-style note card */}
-                  <div className="bg-white rounded-lg shadow-2xl p-4">
-                    {/* Cream/off-white inner area */}
-                    <div
-                      className="rounded flex flex-col justify-between"
-                      style={{
-                        backgroundColor: "#FAF8F5",
-                        height: "280px",
-                        padding: "24px"
-                      }}
-                    >
-                      {/* Note text area */}
-                      <textarea
-                        value={noteText}
-                        onChange={handleNoteChange}
-                        onClick={(e) => e.stopPropagation()}
-                        placeholder="Write your message here..."
-                        className="w-full flex-1 bg-transparent text-gray-700 text-center text-2xl leading-relaxed resize-none focus:outline-none placeholder:text-gray-400 font-[family-name:var(--font-caveat)]"
-                        maxLength={150}
+                  <div className="text-center space-y-4">
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      Scan to Download
+                    </h3>
+                    <div className="bg-white p-4 rounded-lg border-2 border-gray-200 inline-block">
+                      <QRCodeSVG
+                        value={qrCodeData}
+                        size={200}
+                        level="H"
+                        includeMargin={true}
                       />
-
-                      {/* Date at bottom right */}
-                      <div className="text-right mt-4">
-                        <p className="text-gray-500 text-lg font-[family-name:var(--font-caveat)]">
-                          {getCurrentDate()}
-                        </p>
-                      </div>
                     </div>
+                    <p className="text-sm text-gray-600">
+                      Scan this QR code with your phone to download the image
+                    </p>
+                    <button
+                      onClick={() => setShowQR(false)}
+                      className="text-sm text-gray-500 hover:text-gray-700 underline"
+                    >
+                      Close
+                    </button>
                   </div>
                 </motion.div>
               )}
             </AnimatePresence>
-          </motion.div>
+          </div>
         </div>
       </div>
 
@@ -380,41 +391,122 @@ export default function CompositePage() {
         transition={{ delay: 0.3 }}
         className="shrink-0 bg-white border-t border-gray-200 px-4 py-4 safe-area-pb"
       >
-        <div className="max-w-md mx-auto space-y-3">
-          {/* Download Button */}
-          <Button
-            onClick={handleDownload}
-            variant="primary"
-            size="lg"
-            fullWidth
-            disabled={isDownloading}
-          >
-            <span className="flex items-center justify-center gap-2">
-              {isDownloading ? (
-                <>
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>Generating...</span>
-                </>
-              ) : (
-                <>
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                    />
-                  </svg>
-                  <span>Download Photo Strip</span>
-                </>
-              )}
-            </span>
-          </Button>
+        <div className="max-w-4xl mx-auto">
+          {/* Error Message */}
+          {errorMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm text-center"
+            >
+              {errorMessage}
+            </motion.div>
+          )}
+
+          {/* Download Options */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+            {/* Download Strip Only */}
+            <Button
+              onClick={handleDownloadStripOnly}
+              variant="primary"
+              size="lg"
+              disabled={isDownloading}
+            >
+              <span className="flex items-center justify-center gap-2">
+                {isDownloading ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Generating...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                      />
+                    </svg>
+                    <span>Strip Only</span>
+                  </>
+                )}
+              </span>
+            </Button>
+
+            {/* Download With Note */}
+            <Button
+              onClick={handleDownloadWithNote}
+              variant="primary"
+              size="lg"
+              disabled={isDownloading}
+            >
+              <span className="flex items-center justify-center gap-2">
+                {isDownloading ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Generating...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                      />
+                    </svg>
+                    <span>With Note</span>
+                  </>
+                )}
+              </span>
+            </Button>
+
+            {/* Generate QR Code */}
+            <Button
+              onClick={handleGenerateQR}
+              variant="outline"
+              size="lg"
+              disabled={isGeneratingQR}
+            >
+              <span className="flex items-center justify-center gap-2">
+                {isGeneratingQR ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-gray-600 border-t-transparent rounded-full animate-spin" />
+                    <span>Generating...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"
+                      />
+                    </svg>
+                    <span>Generate QR</span>
+                  </>
+                )}
+              </span>
+            </Button>
+          </div>
 
           {/* Back to Review */}
           <Button
@@ -442,9 +534,6 @@ export default function CompositePage() {
           </Button>
         </div>
       </motion.div>
-
-      {/* Hidden canvas for generating composite */}
-      <canvas ref={canvasRef} className="hidden" />
     </main>
   );
 }

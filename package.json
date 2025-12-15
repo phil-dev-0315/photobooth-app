@@ -18,12 +18,14 @@
     "@supabase/supabase-js": "^2.87.1",
     "@tailwindcss/postcss": "^4.1.18",
     "framer-motion": "^12.23.26",
+    "html-to-image": "^1.11.13",
     "konva": "^10.0.12",
     "next": "^16.0.10",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
-    "react-konva": "^19.2.1"
+    "react-konva": "^19.2.1",
+    "use-image": "^1.1.4"
   },
   "devDependencies": {
     "@types/node": "^25.0.1",
