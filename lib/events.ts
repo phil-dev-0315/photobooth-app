@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { Event, EventFormData, EventLayout, Session, SessionWithPhotos, Photo, AdminStats } from '@/types';
+import type { Event, EventFormData, EventLayout, Session, SessionWithPhotos, Photo, AdminStats, Sticker } from '@/types';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -141,6 +141,45 @@ export async function deleteEventLayout(id: string): Promise<void> {
   });
   const json = await response.json();
   if (!response.ok) throw new Error(json.error || 'Failed to delete event layout');
+}
+
+// ============================================
+// Sticker Functions
+// ============================================
+
+/**
+ * Get stickers for an event
+ */
+export async function getEventStickers(eventId: string): Promise<Sticker[]> {
+  const response = await fetch(`/api/stickers?eventId=${eventId}`);
+  const json = await response.json();
+  if (!response.ok) throw new Error(json.error || 'Failed to fetch stickers');
+  return json.data || [];
+}
+
+/**
+ * Create sticker for an event
+ */
+export async function createSticker(sticker: Omit<Sticker, 'id' | 'created_at'>): Promise<Sticker> {
+  const response = await fetch('/api/stickers', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(sticker),
+  });
+  const json = await response.json();
+  if (!response.ok) throw new Error(json.error || 'Failed to create sticker');
+  return json.data;
+}
+
+/**
+ * Delete sticker
+ */
+export async function deleteSticker(id: string): Promise<void> {
+  const response = await fetch(`/api/stickers?id=${id}`, {
+    method: 'DELETE',
+  });
+  const json = await response.json();
+  if (!response.ok) throw new Error(json.error || 'Failed to delete sticker');
 }
 
 // ============================================

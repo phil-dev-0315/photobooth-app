@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { getEventById, getEventLayouts } from "@/lib/events";
 import FrameUploader from "@/components/admin/FrameUploader";
 import AssetUploader from "@/components/admin/AssetUploader";
+import StickerUploader from "@/components/admin/StickerUploader";
 import type { Event, EventLayout } from "@/types";
 
 export default function EventAssetsPage() {
@@ -146,6 +147,45 @@ export default function EventAssetsPage() {
             onUploadComplete={loadData}
           />
         </div>
+
+        {/* Stickers - Only show if stickers are enabled for this event */}
+        {event.stickers_enabled ? (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <StickerUploader
+              eventId={eventId}
+              onUploadComplete={loadData}
+            />
+          </div>
+        ) : (
+          <div className="bg-gray-50 rounded-lg border border-gray-200 border-dashed p-6">
+            <div className="text-center">
+              <svg
+                className="w-12 h-12 text-gray-300 mx-auto mb-3"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                />
+              </svg>
+              <h3 className="text-sm font-medium text-gray-900 mb-1">Stickers Disabled</h3>
+              <p className="text-sm text-gray-500">
+                Enable stickers in the{" "}
+                <button
+                  onClick={() => router.push(`/admin/events/${eventId}`)}
+                  className="text-purple-600 hover:text-purple-500 font-medium"
+                >
+                  event settings
+                </button>{" "}
+                to upload stickers.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Instructions */}
         <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-6">

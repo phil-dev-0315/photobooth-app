@@ -1,8 +1,10 @@
 "use client";
 
 import { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from "react";
-import { Stage, Layer, Image as KonvaImage, Text } from "react-konva";
+import { Stage, Layer, Image as KonvaImage, Text, Group } from "react-konva";
 import useImage from "use-image";
+import type { PlaceholderShape, PlacedSticker } from "@/types";
+import StickerLayer from "./StickerLayer";
 
 interface Photo {
   id: string;
@@ -14,6 +16,7 @@ interface PhotoPlaceholder {
   y: number;
   width: number;
   height: number;
+  shape?: PlaceholderShape;
 }
 
 interface PhotoCompositorProps {
@@ -26,6 +29,12 @@ interface PhotoCompositorProps {
   height?: number;
   placeholders?: PhotoPlaceholder[];
   onExport?: (dataUrl: string) => void;
+  // Sticker props
+  stickers?: PlacedSticker[];
+  selectedStickerId?: string | null;
+  onStickerSelect?: (id: string | null) => void;
+  onStickerChange?: (id: string, attrs: Partial<PlacedSticker>) => void;
+  onStickerDelete?: (id: string) => void;
 }
 
 // Custom hook for loading images with proper error handling
@@ -48,6 +57,12 @@ const PhotoCompositor = forwardRef<PhotoCompositorHandle, PhotoCompositorProps>(
   height = 1920,
   placeholders = [],
   onExport,
+  // Sticker props
+  stickers = [],
+  selectedStickerId = null,
+  onStickerSelect,
+  onStickerChange,
+  onStickerDelete,
 }, ref) => {
   const stageRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -255,6 +270,31 @@ const PhotoCompositor = forwardRef<PhotoCompositorHandle, PhotoCompositorProps>(
           style={{
             transformOrigin: "top left",
           }}
+          // Deselect sticker when clicking outside of stickers
+          onMouseDown={(e) => {
+            // Check if the clicked target is a sticker or transformer
+            const clickedOnEmpty = e.target === e.target.getStage();
+            const targetName = e.target.name?.() || "";
+            const isTransformerPart = targetName.includes("_anchor") || targetName.includes("rotater") || e.target.getClassName?.() === "Transformer";
+            const parentName = e.target.getParent?.()?.getClassName?.() || "";
+            const isInStickerLayer = e.target.getLayer?.()?.getChildren?.()?.some?.((child: any) =>
+              child.getClassName?.() === "Image" && child.attrs?.draggable
+            );
+
+            // Deselect if not clicking on sticker image or transformer
+            if (clickedOnEmpty || (!isTransformerPart && !e.target.attrs?.draggable)) {
+              onStickerSelect?.(null);
+            }
+          }}
+          onTouchStart={(e) => {
+            const clickedOnEmpty = e.target === e.target.getStage();
+            const targetName = e.target.name?.() || "";
+            const isTransformerPart = targetName.includes("_anchor") || targetName.includes("rotater") || e.target.getClassName?.() === "Transformer";
+
+            if (clickedOnEmpty || (!isTransformerPart && !e.target.attrs?.draggable)) {
+              onStickerSelect?.(null);
+            }
+          }}
         >
         <Layer>
           {/* Background frame/template */}
@@ -274,7 +314,43 @@ const PhotoCompositor = forwardRef<PhotoCompositorHandle, PhotoCompositorProps>(
 
             const pos = photoPositions[index];
             const crop = getCropParams(photoImage, pos);
+            const isCircle = pos.shape === "circle";
 
+            // For circular shapes, use Group with clipFunc
+            if (isCircle) {
+              const centerX = pos.width / 2;
+              const centerY = pos.height / 2;
+              const radius = Math.min(pos.width, pos.height) / 2;
+
+              return (
+                <Group
+                  key={`photo-${index}`}
+                  x={pos.x}
+                  y={pos.y}
+                  clipFunc={(ctx) => {
+                    ctx.beginPath();
+                    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2, false);
+                    ctx.closePath();
+                  }}
+                >
+                  <KonvaImage
+                    image={photoImage}
+                    x={0}
+                    y={0}
+                    width={pos.width}
+                    height={pos.height}
+                    crop={{
+                      x: crop.cropX,
+                      y: crop.cropY,
+                      width: crop.cropWidth,
+                      height: crop.cropHeight,
+                    }}
+                  />
+                </Group>
+              );
+            }
+
+            // Rectangle shape (default)
             return (
               <KonvaImage
                 key={`photo-${index}`}
@@ -320,8 +396,23 @@ const PhotoCompositor = forwardRef<PhotoCompositorHandle, PhotoCompositorProps>(
               opacity={0.9}
             />
           )}
-
         </Layer>
+
+        {/* Stickers Layer - rendered on top */}
+        {stickers.length > 0 && (
+          <Layer>
+            {stickers.map((sticker) => (
+              <StickerLayer
+                key={sticker.id}
+                sticker={sticker}
+                isSelected={selectedStickerId === sticker.id}
+                onSelect={() => onStickerSelect?.(sticker.id)}
+                onChange={(attrs) => onStickerChange?.(sticker.id, attrs)}
+                onDelete={() => onStickerDelete?.(sticker.id)}
+              />
+            ))}
+          </Layer>
+        )}
         </Stage>
       </div>
     </div>

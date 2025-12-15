@@ -22,6 +22,7 @@ export function EventForm({ initialData, onSubmit, onCancel, isLoading }: EventF
     message_enabled: initialData?.message_enabled || false,
     message_char_limit: initialData?.message_char_limit || 100,
     default_layout: initialData?.default_layout || '3-vertical',
+    stickers_enabled: initialData?.stickers_enabled || false,
   });
 
   const [errors, setErrors] = useState<Partial<Record<keyof EventFormData, string>>>({});
@@ -202,6 +203,31 @@ export function EventForm({ initialData, onSubmit, onCancel, isLoading }: EventF
             error={errors.message_char_limit}
             helperText="Maximum characters allowed in messages (50-500)"
           />
+        )}
+      </div>
+
+      {/* Sticker Settings */}
+      <div className="bg-white rounded-lg shadow p-6 space-y-4">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Sticker Settings</h3>
+
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="stickers_enabled"
+            name="stickers_enabled"
+            checked={formData.stickers_enabled}
+            onChange={handleChange}
+            className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+          />
+          <label htmlFor="stickers_enabled" className="text-sm font-medium text-gray-700">
+            Enable stickers feature
+          </label>
+        </div>
+
+        {formData.stickers_enabled && (
+          <p className="text-sm text-gray-500">
+            Users will be able to add stickers to their photos. Upload stickers in the Assets section after saving the event.
+          </p>
         )}
       </div>
 

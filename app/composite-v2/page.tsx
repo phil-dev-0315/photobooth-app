@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useSession } from "@/contexts/SessionContext";
-import { getActiveEvent, getEventLayouts } from "@/lib/events";
+import { getActiveEvent, getEventLayouts, getEventStickers } from "@/lib/events";
 import PhotoCompositor, { PhotoCompositorHandle } from "@/components/PhotoCompositor";
 import { Button } from "@/components/ui/Button";
-import type { Event, EventLayout } from "@/types";
+import type { Event, EventLayout, Sticker, PlacedSticker } from "@/types";
 
 export default function CompositeV2Page() {
   const router = useRouter();
@@ -19,6 +19,12 @@ export default function CompositeV2Page() {
   const [isDownloading, setIsDownloading] = useState(false);
   const compositorRef = useRef<PhotoCompositorHandle>(null);
 
+  // Sticker state
+  const [availableStickers, setAvailableStickers] = useState<Sticker[]>([]);
+  const [placedStickers, setPlacedStickers] = useState<PlacedSticker[]>([]);
+  const [selectedStickerId, setSelectedStickerId] = useState<string | null>(null);
+  const [showStickerPanel, setShowStickerPanel] = useState(false);
+
   // Redirect if no photos
   useEffect(() => {
     if (photos.length === 0) {
@@ -26,7 +32,7 @@ export default function CompositeV2Page() {
     }
   }, [photos.length, router]);
 
-  // Load active event and layouts
+  // Load active event, layouts, and stickers
   useEffect(() => {
     const loadEventData = async () => {
       try {
@@ -41,6 +47,16 @@ export default function CompositeV2Page() {
           // Select default layout or first layout
           const defaultLayout = eventLayouts.find((l) => l.is_default) || eventLayouts[0];
           setSelectedLayout(defaultLayout || null);
+
+          // Load stickers if enabled
+          if (activeEvent.stickers_enabled) {
+            try {
+              const stickers = await getEventStickers(activeEvent.id);
+              setAvailableStickers(stickers);
+            } catch (err) {
+              console.error("Error loading stickers:", err);
+            }
+          }
         }
       } catch (error) {
         console.error("Error loading event data:", error);
@@ -50,6 +66,45 @@ export default function CompositeV2Page() {
     };
 
     loadEventData();
+  }, []);
+
+  // Sticker handlers
+  const handleAddSticker = useCallback((sticker: Sticker) => {
+    const canvasWidth = selectedLayout?.width || 1080;
+    const canvasHeight = selectedLayout?.height || 1920;
+
+    const newPlacedSticker: PlacedSticker = {
+      id: `placed-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      stickerId: sticker.id,
+      url: sticker.url,
+      x: canvasWidth / 2 - 75, // Center horizontally
+      y: canvasHeight / 2 - 75, // Center vertically
+      width: 150,
+      height: 150,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+    };
+    setPlacedStickers((prev) => [...prev, newPlacedSticker]);
+    setSelectedStickerId(newPlacedSticker.id);
+  }, [selectedLayout]);
+
+  const handleStickerChange = useCallback((id: string, attrs: Partial<PlacedSticker>) => {
+    setPlacedStickers((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, ...attrs } : s))
+    );
+  }, []);
+
+  const handleStickerDelete = useCallback((id: string) => {
+    setPlacedStickers((prev) => prev.filter((s) => s.id !== id));
+    if (selectedStickerId === id) {
+      setSelectedStickerId(null);
+    }
+  }, [selectedStickerId]);
+
+  const handleClearAllStickers = useCallback(() => {
+    setPlacedStickers([]);
+    setSelectedStickerId(null);
   }, []);
 
   const handleDownload = () => {
@@ -138,8 +193,61 @@ export default function CompositeV2Page() {
                 width={selectedLayout?.width || 1080}
                 height={selectedLayout?.height || 1920}
                 placeholders={selectedLayout?.placeholders || []}
+                // Sticker props
+                stickers={placedStickers}
+                selectedStickerId={selectedStickerId}
+                onStickerSelect={setSelectedStickerId}
+                onStickerChange={handleStickerChange}
+                onStickerDelete={handleStickerDelete}
               />
+              {selectedStickerId && (
+                <p className="text-xs text-gray-500 mt-2 text-center">
+                  Tap sticker to select. Press Delete key or use button below to remove.
+                </p>
+              )}
             </div>
+
+            {/* Sticker Panel - Mobile */}
+            {event?.stickers_enabled && availableStickers.length > 0 && (
+              <div className="bg-white rounded-lg shadow-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-base font-semibold text-gray-900">
+                    Add Stickers
+                  </h3>
+                  {placedStickers.length > 0 && (
+                    <button
+                      onClick={handleClearAllStickers}
+                      className="text-xs text-red-600 hover:text-red-700"
+                    >
+                      Clear All ({placedStickers.length})
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-4 gap-2">
+                  {availableStickers.map((sticker) => (
+                    <button
+                      key={sticker.id}
+                      onClick={() => handleAddSticker(sticker)}
+                      className="aspect-square border-2 border-gray-200 rounded-lg overflow-hidden hover:border-blue-400 transition p-1"
+                    >
+                      <img
+                        src={sticker.url}
+                        alt={sticker.name}
+                        className="w-full h-full object-contain"
+                      />
+                    </button>
+                  ))}
+                </div>
+                {selectedStickerId && (
+                  <button
+                    onClick={() => handleStickerDelete(selectedStickerId)}
+                    className="mt-3 w-full py-2 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50"
+                  >
+                    Remove Selected Sticker
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* Layout Selection */}
             {layouts.length > 0 && (
@@ -227,9 +335,16 @@ export default function CompositeV2Page() {
             {/* Preview Area */}
             <div className="lg:col-span-2">
               <div className="bg-white rounded-lg shadow-lg p-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                  Preview
-                </h2>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    Preview
+                  </h2>
+                  {selectedStickerId && (
+                    <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                      Sticker selected - drag to move, corners to resize
+                    </span>
+                  )}
+                </div>
                 <PhotoCompositor
                   ref={compositorRef}
                   photos={photos}
@@ -240,6 +355,12 @@ export default function CompositeV2Page() {
                   width={selectedLayout?.width || 1080}
                   height={selectedLayout?.height || 1920}
                   placeholders={selectedLayout?.placeholders || []}
+                  // Sticker props
+                  stickers={placedStickers}
+                  selectedStickerId={selectedStickerId}
+                  onStickerSelect={setSelectedStickerId}
+                  onStickerChange={handleStickerChange}
+                  onStickerDelete={handleStickerDelete}
                 />
               </div>
             </div>
@@ -277,6 +398,55 @@ export default function CompositeV2Page() {
                       </button>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* Sticker Panel - Desktop */}
+              {event?.stickers_enabled && availableStickers.length > 0 && (
+                <div className="bg-white rounded-lg shadow-lg p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      Add Stickers
+                    </h3>
+                    {placedStickers.length > 0 && (
+                      <button
+                        onClick={handleClearAllStickers}
+                        className="text-xs text-red-600 hover:text-red-700"
+                      >
+                        Clear All ({placedStickers.length})
+                      </button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto">
+                    {availableStickers.map((sticker) => (
+                      <button
+                        key={sticker.id}
+                        onClick={() => handleAddSticker(sticker)}
+                        className="aspect-square border-2 border-gray-200 rounded-lg overflow-hidden hover:border-blue-400 hover:shadow-md transition p-1"
+                        title={sticker.name}
+                      >
+                        <img
+                          src={sticker.url}
+                          alt={sticker.name}
+                          className="w-full h-full object-contain"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                  {selectedStickerId && (
+                    <button
+                      onClick={() => handleStickerDelete(selectedStickerId)}
+                      className="mt-4 w-full py-2 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50 flex items-center justify-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      Remove Selected Sticker
+                    </button>
+                  )}
+                  <p className="text-xs text-gray-500 mt-3">
+                    Click a sticker to add it. Drag to move, use corners to resize and rotate.
+                  </p>
                 </div>
               )}
 

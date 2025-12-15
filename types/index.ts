@@ -11,6 +11,7 @@ export interface Event {
   message_char_limit: number;
   default_layout: string;
   logo_url: string | null;
+  stickers_enabled: boolean; // Enable sticker feature for this event
   created_at: string;
   updated_at: string;
 }
@@ -25,14 +26,18 @@ export interface EventFormData {
   message_enabled: boolean;
   message_char_limit: number;
   default_layout: string;
+  stickers_enabled?: boolean;
 }
 
 // Placeholder for photo positioning
+export type PlaceholderShape = 'rectangle' | 'circle';
+
 export interface PhotoPlaceholder {
   x: number;
   y: number;
   width: number;
   height: number;
+  shape?: PlaceholderShape; // defaults to 'rectangle' if undefined
 }
 
 // Event layout types
@@ -115,7 +120,7 @@ export interface UploadResult {
 }
 
 export interface StorageBucket {
-  name: 'frames' | 'logos' | 'photos' | 'composites';
+  name: 'frames' | 'logos' | 'photos' | 'composites' | 'stickers';
   publicAccess: boolean;
 }
 
@@ -126,4 +131,28 @@ export interface AdminStats {
   totalSessions: number;
   todaySessions: number;
   totalPhotos: number;
+}
+
+// Sticker types
+export interface Sticker {
+  id: string;
+  event_id: string;
+  name: string;
+  url: string;
+  category?: string;
+  created_at: string;
+}
+
+// Placed sticker on canvas (with transform properties)
+export interface PlacedSticker {
+  id: string; // Unique ID for this placed instance
+  stickerId: string; // Reference to the original sticker
+  url: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  scaleX: number;
+  scaleY: number;
 }
