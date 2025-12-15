@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
     const file = formData.get('file') as File;
     const bucket = formData.get('bucket') as string;
     const eventId = formData.get('eventId') as string;
-    const assetType = formData.get('assetType') as 'frame' | 'logo';
+    const assetType = formData.get('assetType') as 'frame' | 'logo' | 'overlay';
 
     if (!file || !bucket || !eventId) {
       return NextResponse.json(
@@ -41,6 +41,17 @@ export async function POST(request: NextRequest) {
     const { data: { publicUrl } } = supabaseAdmin.storage
       .from(bucket)
       .getPublicUrl(fileName);
+
+    // For overlay uploads, just return the URL without creating a layout
+    if (assetType === 'overlay') {
+      return NextResponse.json({
+        success: true,
+        data: {
+          url: publicUrl,
+          path: fileName,
+        }
+      });
+    }
 
     // Get optional width, height, and placeholders from form data
     const width = formData.get('width');

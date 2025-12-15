@@ -135,6 +135,7 @@ export default function EventAssetsPage() {
             photosPerSession={event.photos_per_session}
             existingLayouts={frameLayouts}
             onUploadComplete={loadData}
+            isPremiumFrameEnabled={event.is_premium_frame_enabled}
           />
         </div>
 

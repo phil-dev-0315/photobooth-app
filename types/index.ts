@@ -12,6 +12,7 @@ export interface Event {
   default_layout: string;
   logo_url: string | null;
   stickers_enabled: boolean; // Enable sticker feature for this event
+  is_premium_frame_enabled: boolean; // Enable premium overlay frames for this event
   created_at: string;
   updated_at: string;
 }
@@ -27,6 +28,7 @@ export interface EventFormData {
   message_char_limit: number;
   default_layout: string;
   stickers_enabled?: boolean;
+  is_premium_frame_enabled?: boolean;
 }
 
 // Placeholder for photo positioning
@@ -38,6 +40,7 @@ export interface PhotoPlaceholder {
   width: number;
   height: number;
   shape?: PlaceholderShape; // defaults to 'rectangle' if undefined
+  overlay_url?: string; // Optional overlay PNG for premium frame effect
 }
 
 // Event layout types

@@ -17,6 +17,7 @@ interface PhotoPlaceholder {
   width: number;
   height: number;
   shape?: PlaceholderShape;
+  overlay_url?: string;
 }
 
 interface PhotoCompositorProps {
@@ -41,6 +42,103 @@ interface PhotoCompositorProps {
 function useKonvaImage(url: string | null | undefined) {
   const [image, status] = useImage(url || "", "anonymous");
   return [image, status] as const;
+}
+
+// Component to render a single photo slot with optional overlay
+interface PhotoSlotWithOverlayProps {
+  photoImage: HTMLImageElement;
+  placeholder: PhotoPlaceholder;
+  index: number;
+  getCropParams: (img: HTMLImageElement, placeholder: PhotoPlaceholder) => {
+    cropX: number;
+    cropY: number;
+    cropWidth: number;
+    cropHeight: number;
+  };
+}
+
+function PhotoSlotWithOverlay({
+  photoImage,
+  placeholder,
+  index,
+  getCropParams
+}: PhotoSlotWithOverlayProps) {
+  const [overlayImage] = useKonvaImage(placeholder.overlay_url);
+  const crop = getCropParams(photoImage, placeholder);
+  const isCircle = placeholder.shape === "circle";
+
+  // For circular shapes, use Group with clipFunc
+  if (isCircle) {
+    const centerX = placeholder.width / 2;
+    const centerY = placeholder.height / 2;
+    const radius = Math.min(placeholder.width, placeholder.height) / 2;
+
+    return (
+      <Group
+        key={`photo-${index}`}
+        x={placeholder.x}
+        y={placeholder.y}
+        clipFunc={(ctx) => {
+          ctx.beginPath();
+          ctx.arc(centerX, centerY, radius, 0, Math.PI * 2, false);
+          ctx.closePath();
+        }}
+      >
+        <KonvaImage
+          image={photoImage}
+          x={0}
+          y={0}
+          width={placeholder.width}
+          height={placeholder.height}
+          crop={{
+            x: crop.cropX,
+            y: crop.cropY,
+            width: crop.cropWidth,
+            height: crop.cropHeight,
+          }}
+        />
+        {/* Overlay for circular placeholder */}
+        {overlayImage && (
+          <KonvaImage
+            image={overlayImage}
+            x={0}
+            y={0}
+            width={placeholder.width}
+            height={placeholder.height}
+          />
+        )}
+      </Group>
+    );
+  }
+
+  // Rectangle shape (default) - render as Group to layer photo + overlay
+  return (
+    <Group key={`photo-${index}`}>
+      <KonvaImage
+        image={photoImage}
+        x={placeholder.x}
+        y={placeholder.y}
+        width={placeholder.width}
+        height={placeholder.height}
+        crop={{
+          x: crop.cropX,
+          y: crop.cropY,
+          width: crop.cropWidth,
+          height: crop.cropHeight,
+        }}
+      />
+      {/* Overlay on top of photo */}
+      {overlayImage && (
+        <KonvaImage
+          image={overlayImage}
+          x={placeholder.x}
+          y={placeholder.y}
+          width={placeholder.width}
+          height={placeholder.height}
+        />
+      )}
+    </Group>
+  );
 }
 
 export interface PhotoCompositorHandle {
@@ -308,63 +406,17 @@ const PhotoCompositor = forwardRef<PhotoCompositorHandle, PhotoCompositorProps>(
             />
           )}
 
-          {/* Photos - rendered with crop to fill placeholders */}
+          {/* Photos - rendered with crop to fill placeholders, with optional overlays */}
           {photoImages.map((photoImage, index) => {
             if (!photoImage || !photoPositions[index]) return null;
 
-            const pos = photoPositions[index];
-            const crop = getCropParams(photoImage, pos);
-            const isCircle = pos.shape === "circle";
-
-            // For circular shapes, use Group with clipFunc
-            if (isCircle) {
-              const centerX = pos.width / 2;
-              const centerY = pos.height / 2;
-              const radius = Math.min(pos.width, pos.height) / 2;
-
-              return (
-                <Group
-                  key={`photo-${index}`}
-                  x={pos.x}
-                  y={pos.y}
-                  clipFunc={(ctx) => {
-                    ctx.beginPath();
-                    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2, false);
-                    ctx.closePath();
-                  }}
-                >
-                  <KonvaImage
-                    image={photoImage}
-                    x={0}
-                    y={0}
-                    width={pos.width}
-                    height={pos.height}
-                    crop={{
-                      x: crop.cropX,
-                      y: crop.cropY,
-                      width: crop.cropWidth,
-                      height: crop.cropHeight,
-                    }}
-                  />
-                </Group>
-              );
-            }
-
-            // Rectangle shape (default)
             return (
-              <KonvaImage
-                key={`photo-${index}`}
-                image={photoImage}
-                x={pos.x}
-                y={pos.y}
-                width={pos.width}
-                height={pos.height}
-                crop={{
-                  x: crop.cropX,
-                  y: crop.cropY,
-                  width: crop.cropWidth,
-                  height: crop.cropHeight,
-                }}
+              <PhotoSlotWithOverlay
+                key={`photo-slot-${index}`}
+                photoImage={photoImage}
+                placeholder={photoPositions[index]}
+                index={index}
+                getCropParams={getCropParams}
               />
             );
           })}

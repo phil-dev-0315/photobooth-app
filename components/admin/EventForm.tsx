@@ -23,6 +23,7 @@ export function EventForm({ initialData, onSubmit, onCancel, isLoading }: EventF
     message_char_limit: initialData?.message_char_limit || 100,
     default_layout: initialData?.default_layout || '3-vertical',
     stickers_enabled: initialData?.stickers_enabled || false,
+    is_premium_frame_enabled: initialData?.is_premium_frame_enabled || false,
   });
 
   const [errors, setErrors] = useState<Partial<Record<keyof EventFormData, string>>>({});
@@ -227,6 +228,31 @@ export function EventForm({ initialData, onSubmit, onCancel, isLoading }: EventF
         {formData.stickers_enabled && (
           <p className="text-sm text-gray-500">
             Users will be able to add stickers to their photos. Upload stickers in the Assets section after saving the event.
+          </p>
+        )}
+      </div>
+
+      {/* Premium Frame Settings */}
+      <div className="bg-white rounded-lg shadow p-6 space-y-4">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Premium Frame Settings</h3>
+
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="is_premium_frame_enabled"
+            name="is_premium_frame_enabled"
+            checked={formData.is_premium_frame_enabled}
+            onChange={handleChange}
+            className="w-4 h-4 text-amber-600 border-gray-300 rounded focus:ring-amber-500"
+          />
+          <label htmlFor="is_premium_frame_enabled" className="text-sm font-medium text-gray-700">
+            Enable premium overlay frames
+          </label>
+        </div>
+
+        {formData.is_premium_frame_enabled && (
+          <p className="text-sm text-gray-500">
+            Allows adding transparent PNG overlays on top of photos. Upload overlays in the Assets section after saving.
           </p>
         )}
       </div>

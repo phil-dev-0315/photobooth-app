@@ -9,6 +9,7 @@ interface FrameUploaderProps {
   photosPerSession: number;
   existingLayouts: EventLayout[];
   onUploadComplete: () => void;
+  isPremiumFrameEnabled?: boolean;
 }
 
 type UploadStep = "select" | "configure" | "uploading";
@@ -18,6 +19,7 @@ export default function FrameUploader({
   photosPerSession,
   existingLayouts,
   onUploadComplete,
+  isPremiumFrameEnabled = false,
 }: FrameUploaderProps) {
   const [step, setStep] = useState<UploadStep>("select");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -281,6 +283,8 @@ export default function FrameUploader({
             placeholders={placeholders}
             onChange={setPlaceholders}
             photosPerSession={photosPerSession}
+            eventId={eventId}
+            isPremiumFrameEnabled={isPremiumFrameEnabled}
           />
 
           {/* Actions */}
