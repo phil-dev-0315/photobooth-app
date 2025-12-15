@@ -40,7 +40,16 @@ export interface PhotoPlaceholder {
   width: number;
   height: number;
   shape?: PlaceholderShape; // defaults to 'rectangle' if undefined
-  overlay_url?: string; // Optional overlay PNG for premium frame effect
+}
+
+// Frame overlay - fixed decorative element positioned by admin
+export interface FrameOverlay {
+  id: string;
+  url: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 // Event layout types
@@ -55,6 +64,7 @@ export interface EventLayout {
   width: number;
   height: number;
   placeholders: PhotoPlaceholder[];
+  overlays?: FrameOverlay[]; // Fixed overlays positioned by admin
   created_at: string;
 }
 

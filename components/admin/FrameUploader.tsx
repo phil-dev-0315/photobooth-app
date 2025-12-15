@@ -2,7 +2,9 @@
 
 import { useState, useRef } from "react";
 import PlaceholderEditor from "./PlaceholderEditor";
-import type { PhotoPlaceholder, EventLayout } from "@/types";
+import OverlayEditor from "./OverlayEditor";
+import { updateEventLayout } from "@/lib/events";
+import type { PhotoPlaceholder, EventLayout, FrameOverlay } from "@/types";
 
 interface FrameUploaderProps {
   eventId: string;
@@ -12,7 +14,7 @@ interface FrameUploaderProps {
   isPremiumFrameEnabled?: boolean;
 }
 
-type UploadStep = "select" | "configure" | "uploading";
+type UploadStep = "select" | "configure" | "uploading" | "editing";
 
 export default function FrameUploader({
   eventId,
@@ -27,9 +29,14 @@ export default function FrameUploader({
   const [width, setWidth] = useState(1080);
   const [height, setHeight] = useState(1920);
   const [placeholders, setPlaceholders] = useState<PhotoPlaceholder[]>([]);
+  const [overlays, setOverlays] = useState<FrameOverlay[]>([]);
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Edit mode state
+  const [editingLayout, setEditingLayout] = useState<EventLayout | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -94,6 +101,7 @@ export default function FrameUploader({
       formData.append("width", width.toString());
       formData.append("height", height.toString());
       formData.append("placeholders", JSON.stringify(placeholders));
+      formData.append("overlays", JSON.stringify(overlays));
 
       const response = await fetch("/api/upload-asset", {
         method: "POST",
@@ -110,6 +118,7 @@ export default function FrameUploader({
       setSelectedFile(null);
       setPreviewUrl("");
       setPlaceholders([]);
+      setOverlays([]);
       setStep("select");
       onUploadComplete();
     } catch (error: any) {
@@ -125,6 +134,7 @@ export default function FrameUploader({
     setSelectedFile(null);
     setPreviewUrl("");
     setPlaceholders([]);
+    setOverlays([]);
     setStep("select");
   };
 
@@ -150,6 +160,60 @@ export default function FrameUploader({
     } catch (error: any) {
       console.error("Delete error:", error);
       alert(`Failed to delete frame: ${error.message}`);
+    }
+  };
+
+  // Start editing an existing layout
+  const handleEdit = (layout: EventLayout) => {
+    setEditingLayout(layout);
+    setPreviewUrl(layout.frame_url || "");
+    setWidth(layout.width);
+    setHeight(layout.height);
+    setPlaceholders(layout.placeholders || []);
+    setOverlays(layout.overlays || []);
+    setStep("editing");
+  };
+
+  // Cancel editing
+  const handleCancelEdit = () => {
+    setEditingLayout(null);
+    setPreviewUrl("");
+    setPlaceholders([]);
+    setOverlays([]);
+    setStep("select");
+  };
+
+  // Save edited layout
+  const handleSaveEdit = async () => {
+    if (!editingLayout) return;
+
+    if (placeholders.length === 0) {
+      alert("Please add at least one placeholder for photos");
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      await updateEventLayout(editingLayout.id, {
+        width,
+        height,
+        placeholders,
+        overlays,
+      });
+
+      // Reset state
+      setEditingLayout(null);
+      setPreviewUrl("");
+      setPlaceholders([]);
+      setOverlays([]);
+      setStep("select");
+      onUploadComplete();
+    } catch (error: any) {
+      console.error("Save error:", error);
+      alert(`Failed to save changes: ${error.message}`);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -216,14 +280,27 @@ export default function FrameUploader({
                         className="w-full h-full object-contain"
                       />
                     </div>
-                    <button
-                      onClick={() => handleDelete(layout)}
-                      className="absolute top-2 right-2 bg-red-600 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-700"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
+                    {/* Action buttons */}
+                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => handleEdit(layout)}
+                        className="bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700"
+                        title="Edit placeholders"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => handleDelete(layout)}
+                        className="bg-red-600 text-white p-2 rounded-full hover:bg-red-700"
+                        title="Delete frame"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
                     <div className="absolute bottom-2 left-2 space-y-1">
                       <div className="bg-gray-900 text-white text-xs px-2 py-1 rounded">
                         {layout.width}x{layout.height}
@@ -231,6 +308,12 @@ export default function FrameUploader({
                       <div className="bg-blue-600 text-white text-xs px-2 py-1 rounded">
                         {layout.placeholders?.length || 0} slots
                       </div>
+                      {/* Show overlay count */}
+                      {layout.overlays && layout.overlays.length > 0 && (
+                        <div className="bg-amber-500 text-white text-xs px-2 py-1 rounded">
+                          {layout.overlays.length} overlay(s)
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -283,9 +366,21 @@ export default function FrameUploader({
             placeholders={placeholders}
             onChange={setPlaceholders}
             photosPerSession={photosPerSession}
-            eventId={eventId}
-            isPremiumFrameEnabled={isPremiumFrameEnabled}
           />
+
+          {/* Overlay Editor - only show if premium frames enabled */}
+          {isPremiumFrameEnabled && (
+            <div className="border-t border-gray-200 pt-6">
+              <OverlayEditor
+                frameUrl={previewUrl}
+                width={width}
+                height={height}
+                overlays={overlays}
+                onChange={setOverlays}
+                eventId={eventId}
+              />
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex gap-3">
@@ -310,6 +405,86 @@ export default function FrameUploader({
         <div className="text-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Uploading frame...</p>
+        </div>
+      )}
+
+      {/* Edit existing frame */}
+      {step === "editing" && editingLayout && previewUrl && (
+        <div className="space-y-6">
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+            <h4 className="text-sm font-semibold text-amber-900 mb-1">Editing Frame</h4>
+            <p className="text-xs text-amber-700">
+              Modify the photo placeholders and overlays for this frame. Changes will be saved when you click "Save Changes".
+            </p>
+          </div>
+
+          {/* Dimension Override */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Output Width (px)
+              </label>
+              <input
+                type="number"
+                value={width}
+                onChange={(e) => setWidth(parseInt(e.target.value) || 1080)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Output Height (px)
+              </label>
+              <input
+                type="number"
+                value={height}
+                onChange={(e) => setHeight(parseInt(e.target.value) || 1920)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+              />
+            </div>
+          </div>
+
+          {/* Placeholder Editor */}
+          <PlaceholderEditor
+            frameUrl={previewUrl}
+            width={width}
+            height={height}
+            placeholders={placeholders}
+            onChange={setPlaceholders}
+            photosPerSession={photosPerSession}
+          />
+
+          {/* Overlay Editor - only show if premium frames enabled */}
+          {isPremiumFrameEnabled && (
+            <div className="border-t border-gray-200 pt-6">
+              <OverlayEditor
+                frameUrl={previewUrl}
+                width={width}
+                height={height}
+                overlays={overlays}
+                onChange={setOverlays}
+                eventId={eventId}
+              />
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex gap-3">
+            <button
+              onClick={handleCancelEdit}
+              disabled={saving}
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSaveEdit}
+              disabled={placeholders.length === 0 || saving}
+              className="flex-1 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {saving ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
         </div>
       )}
     </div>

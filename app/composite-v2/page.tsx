@@ -193,6 +193,7 @@ export default function CompositeV2Page() {
                 width={selectedLayout?.width || 1080}
                 height={selectedLayout?.height || 1920}
                 placeholders={selectedLayout?.placeholders || []}
+                overlays={event?.is_premium_frame_enabled ? selectedLayout?.overlays || [] : []}
                 // Sticker props
                 stickers={placedStickers}
                 selectedStickerId={selectedStickerId}
@@ -355,6 +356,7 @@ export default function CompositeV2Page() {
                   width={selectedLayout?.width || 1080}
                   height={selectedLayout?.height || 1920}
                   placeholders={selectedLayout?.placeholders || []}
+                  overlays={event?.is_premium_frame_enabled ? selectedLayout?.overlays || [] : []}
                   // Sticker props
                   stickers={placedStickers}
                   selectedStickerId={selectedStickerId}

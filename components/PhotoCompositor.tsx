@@ -3,7 +3,7 @@
 import { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from "react";
 import { Stage, Layer, Image as KonvaImage, Text, Group } from "react-konva";
 import useImage from "use-image";
-import type { PlaceholderShape, PlacedSticker } from "@/types";
+import type { PlaceholderShape, PlacedSticker, FrameOverlay } from "@/types";
 import StickerLayer from "./StickerLayer";
 
 interface Photo {
@@ -17,7 +17,6 @@ interface PhotoPlaceholder {
   width: number;
   height: number;
   shape?: PlaceholderShape;
-  overlay_url?: string;
 }
 
 interface PhotoCompositorProps {
@@ -29,6 +28,7 @@ interface PhotoCompositorProps {
   width?: number;
   height?: number;
   placeholders?: PhotoPlaceholder[];
+  overlays?: FrameOverlay[]; // Fixed overlays from admin
   onExport?: (dataUrl: string) => void;
   // Sticker props
   stickers?: PlacedSticker[];
@@ -44,100 +44,19 @@ function useKonvaImage(url: string | null | undefined) {
   return [image, status] as const;
 }
 
-// Component to render a single photo slot with optional overlay
-interface PhotoSlotWithOverlayProps {
-  photoImage: HTMLImageElement;
-  placeholder: PhotoPlaceholder;
-  index: number;
-  getCropParams: (img: HTMLImageElement, placeholder: PhotoPlaceholder) => {
-    cropX: number;
-    cropY: number;
-    cropWidth: number;
-    cropHeight: number;
-  };
-}
+// Component to render a single fixed overlay
+function OverlayImage({ overlay }: { overlay: FrameOverlay }) {
+  const [image] = useKonvaImage(overlay.url);
+  if (!image) return null;
 
-function PhotoSlotWithOverlay({
-  photoImage,
-  placeholder,
-  index,
-  getCropParams
-}: PhotoSlotWithOverlayProps) {
-  const [overlayImage] = useKonvaImage(placeholder.overlay_url);
-  const crop = getCropParams(photoImage, placeholder);
-  const isCircle = placeholder.shape === "circle";
-
-  // For circular shapes, use Group with clipFunc
-  if (isCircle) {
-    const centerX = placeholder.width / 2;
-    const centerY = placeholder.height / 2;
-    const radius = Math.min(placeholder.width, placeholder.height) / 2;
-
-    return (
-      <Group
-        key={`photo-${index}`}
-        x={placeholder.x}
-        y={placeholder.y}
-        clipFunc={(ctx) => {
-          ctx.beginPath();
-          ctx.arc(centerX, centerY, radius, 0, Math.PI * 2, false);
-          ctx.closePath();
-        }}
-      >
-        <KonvaImage
-          image={photoImage}
-          x={0}
-          y={0}
-          width={placeholder.width}
-          height={placeholder.height}
-          crop={{
-            x: crop.cropX,
-            y: crop.cropY,
-            width: crop.cropWidth,
-            height: crop.cropHeight,
-          }}
-        />
-        {/* Overlay for circular placeholder */}
-        {overlayImage && (
-          <KonvaImage
-            image={overlayImage}
-            x={0}
-            y={0}
-            width={placeholder.width}
-            height={placeholder.height}
-          />
-        )}
-      </Group>
-    );
-  }
-
-  // Rectangle shape (default) - render as Group to layer photo + overlay
   return (
-    <Group key={`photo-${index}`}>
-      <KonvaImage
-        image={photoImage}
-        x={placeholder.x}
-        y={placeholder.y}
-        width={placeholder.width}
-        height={placeholder.height}
-        crop={{
-          x: crop.cropX,
-          y: crop.cropY,
-          width: crop.cropWidth,
-          height: crop.cropHeight,
-        }}
-      />
-      {/* Overlay on top of photo */}
-      {overlayImage && (
-        <KonvaImage
-          image={overlayImage}
-          x={placeholder.x}
-          y={placeholder.y}
-          width={placeholder.width}
-          height={placeholder.height}
-        />
-      )}
-    </Group>
+    <KonvaImage
+      image={image}
+      x={overlay.x}
+      y={overlay.y}
+      width={overlay.width}
+      height={overlay.height}
+    />
   );
 }
 
@@ -154,6 +73,7 @@ const PhotoCompositor = forwardRef<PhotoCompositorHandle, PhotoCompositorProps>(
   width = 1080,
   height = 1920,
   placeholders = [],
+  overlays = [],
   onExport,
   // Sticker props
   stickers = [],
@@ -406,20 +326,71 @@ const PhotoCompositor = forwardRef<PhotoCompositorHandle, PhotoCompositorProps>(
             />
           )}
 
-          {/* Photos - rendered with crop to fill placeholders, with optional overlays */}
+          {/* Photos - rendered with crop to fill placeholders */}
           {photoImages.map((photoImage, index) => {
             if (!photoImage || !photoPositions[index]) return null;
 
+            const pos = photoPositions[index];
+            const crop = getCropParams(photoImage, pos);
+            const isCircle = pos.shape === "circle";
+
+            // For circular shapes, use Group with clipFunc
+            if (isCircle) {
+              const centerX = pos.width / 2;
+              const centerY = pos.height / 2;
+              const radius = Math.min(pos.width, pos.height) / 2;
+
+              return (
+                <Group
+                  key={`photo-${index}`}
+                  x={pos.x}
+                  y={pos.y}
+                  clipFunc={(ctx) => {
+                    ctx.beginPath();
+                    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2, false);
+                    ctx.closePath();
+                  }}
+                >
+                  <KonvaImage
+                    image={photoImage}
+                    x={0}
+                    y={0}
+                    width={pos.width}
+                    height={pos.height}
+                    crop={{
+                      x: crop.cropX,
+                      y: crop.cropY,
+                      width: crop.cropWidth,
+                      height: crop.cropHeight,
+                    }}
+                  />
+                </Group>
+              );
+            }
+
+            // Rectangle shape (default)
             return (
-              <PhotoSlotWithOverlay
-                key={`photo-slot-${index}`}
-                photoImage={photoImage}
-                placeholder={photoPositions[index]}
-                index={index}
-                getCropParams={getCropParams}
+              <KonvaImage
+                key={`photo-${index}`}
+                image={photoImage}
+                x={pos.x}
+                y={pos.y}
+                width={pos.width}
+                height={pos.height}
+                crop={{
+                  x: crop.cropX,
+                  y: crop.cropY,
+                  width: crop.cropWidth,
+                  height: crop.cropHeight,
+                }}
               />
             );
           })}
+
+          {/* Fixed Overlays - positioned by admin, rendered on top of photos */}
+          {overlays.map((overlay) => (
+            <OverlayImage key={overlay.id} overlay={overlay} />
+          ))}
 
           {/* Message text */}
           {message && (

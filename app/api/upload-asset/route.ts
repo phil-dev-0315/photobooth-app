@@ -53,10 +53,11 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Get optional width, height, and placeholders from form data
+    // Get optional width, height, placeholders, and overlays from form data
     const width = formData.get('width');
     const height = formData.get('height');
     const placeholdersStr = formData.get('placeholders');
+    const overlaysStr = formData.get('overlays');
 
     let placeholders = [];
     if (placeholdersStr) {
@@ -64,6 +65,15 @@ export async function POST(request: NextRequest) {
         placeholders = JSON.parse(placeholdersStr as string);
       } catch (e) {
         console.error('Failed to parse placeholders:', e);
+      }
+    }
+
+    let overlays = [];
+    if (overlaysStr) {
+      try {
+        overlays = JSON.parse(overlaysStr as string);
+      } catch (e) {
+        console.error('Failed to parse overlays:', e);
       }
     }
 
@@ -78,6 +88,7 @@ export async function POST(request: NextRequest) {
       width: width ? parseInt(width as string) : 1080,
       height: height ? parseInt(height as string) : 1920,
       placeholders: placeholders,
+      overlays: overlays,
     };
 
     const { data: layout, error: layoutError } = await supabaseAdmin

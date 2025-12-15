@@ -10,8 +10,6 @@ interface PlaceholderEditorProps {
   placeholders: PhotoPlaceholder[];
   onChange: (placeholders: PhotoPlaceholder[]) => void;
   photosPerSession: number;
-  eventId?: string; // Required for uploading overlays
-  isPremiumFrameEnabled?: boolean; // Controls overlay upload visibility
 }
 
 type DragMode = "none" | "draw" | "move" | "resize";
@@ -24,13 +22,10 @@ export default function PlaceholderEditor({
   placeholders,
   onChange,
   photosPerSession,
-  eventId,
-  isPremiumFrameEnabled = false,
 }: PlaceholderEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-  const [uploadingOverlayIndex, setUploadingOverlayIndex] = useState<number | null>(null);
 
   // Shape selector state
   const [drawShape, setDrawShape] = useState<PlaceholderShape>("rectangle");
@@ -291,53 +286,6 @@ export default function PlaceholderEditor({
     const currentShape = placeholders[index].shape || "rectangle";
     const newShape: PlaceholderShape = currentShape === "rectangle" ? "circle" : "rectangle";
     updatePlaceholder(index, { shape: newShape });
-  };
-
-  // Handle overlay upload for a placeholder
-  const handleOverlayUpload = async (index: number, file: File) => {
-    if (!eventId) {
-      alert("Event ID is required to upload overlays");
-      return;
-    }
-
-    if (!file.type.startsWith("image/")) {
-      alert("Please upload an image file");
-      return;
-    }
-
-    setUploadingOverlayIndex(index);
-
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("bucket", "frames");
-      formData.append("eventId", eventId);
-      formData.append("assetType", "overlay");
-
-      const response = await fetch("/api/upload-asset", {
-        method: "POST",
-        body: formData,
-      });
-
-      const json = await response.json();
-
-      if (!response.ok) {
-        throw new Error(json.error || "Failed to upload overlay");
-      }
-
-      // Update the placeholder with the overlay URL
-      updatePlaceholder(index, { overlay_url: json.data.url });
-    } catch (error: any) {
-      console.error("Overlay upload error:", error);
-      alert(`Failed to upload overlay: ${error.message}`);
-    } finally {
-      setUploadingOverlayIndex(null);
-    }
-  };
-
-  // Clear overlay from placeholder
-  const clearOverlay = (index: number) => {
-    updatePlaceholder(index, { overlay_url: undefined });
   };
 
   // Generate default placeholders
@@ -715,67 +663,6 @@ export default function PlaceholderEditor({
                     Delete
                   </button>
                 </div>
-
-                {/* Premium Overlay Upload - only show if enabled */}
-                {isPremiumFrameEnabled && (
-                  <div className="flex items-center gap-2 pt-2 border-t border-gray-200 mt-2">
-                    <span className="text-gray-500 text-xs">Overlay:</span>
-                    {placeholder.overlay_url ? (
-                      <div className="flex items-center gap-2 flex-1">
-                        <img
-                          src={placeholder.overlay_url}
-                          alt="Overlay preview"
-                          className="w-8 h-8 object-contain border rounded bg-gray-100"
-                        />
-                        <span className="text-xs text-green-600 truncate flex-1">Overlay set</span>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            clearOverlay(index);
-                          }}
-                          className="text-xs text-red-500 hover:text-red-700 px-2 py-1 hover:bg-red-50 rounded"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2 flex-1">
-                        <label className="flex items-center gap-1 px-2 py-1 text-xs rounded border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 cursor-pointer transition-colors">
-                          {uploadingOverlayIndex === index ? (
-                            <>
-                              <div className="w-3 h-3 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" />
-                              Uploading...
-                            </>
-                          ) : (
-                            <>
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                              </svg>
-                              Upload Overlay
-                            </>
-                          )}
-                          <input
-                            type="file"
-                            accept="image/png"
-                            className="hidden"
-                            disabled={uploadingOverlayIndex !== null}
-                            onChange={(e) => {
-                              e.stopPropagation();
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                handleOverlayUpload(index, file);
-                              }
-                              e.target.value = "";
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        </label>
-                        <span className="text-xs text-gray-400">(Optional PNG)</span>
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
             ))}
           </div>
