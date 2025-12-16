@@ -14,6 +14,27 @@ import { FlashOverlay, CaptureIndicator } from "@/components/capture/FlashOverla
 import { Button } from "@/components/ui/Button";
 import { CapturedPhoto, Event } from "@/types";
 
+// Add these types to handle the experimental Multi-Screen Window Placement API
+interface ScreenDetailed extends Screen {
+  isExtended: boolean;
+  devicePixelRatio: number;
+  label: string;
+  left: number;
+  top: number;
+}
+
+interface ScreenDetails {
+  screens: ScreenDetailed[];
+  currentScreen: ScreenDetailed;
+  onscreenschange: ((this: ScreenDetails, ev: Event) => any) | null;
+}
+
+declare global {
+  interface Window {
+    getScreenDetails?: () => Promise<ScreenDetails>;
+  }
+}
+
 type CapturePhase = "ready" | "countdown" | "capturing" | "between" | "complete";
 
 const BETWEEN_PHOTOS_DELAY = 1500; // ms
@@ -72,10 +93,66 @@ export default function CapturePage() {
     facingMode: "user",
   });
 
+  // --- Projection Logic Start ---
+  const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
+
+  useEffect(() => {
+    broadcastChannelRef.current = new BroadcastChannel('booth_control');
+    return () => {
+      broadcastChannelRef.current?.close();
+    };
+  }, []);
+
+  const openProjection = async () => {
+    try {
+      // Check if the API is supported
+      if (!('getScreenDetails' in window) || !window.getScreenDetails) {
+        console.warn('Multi-Screen Window Placement API not supported.');
+        alert('Multi-screen API not supported. Opening in standard window.');
+        window.open('/projection', 'booth_projection', 'width=800,height=600');
+        return;
+      }
+
+      // Request permission and get screen details
+      const screenDetails = await window.getScreenDetails();
+      
+      // Find the external display
+      const externalScreen = screenDetails.screens.find(
+        (s) => s !== screenDetails.currentScreen
+      );
+
+      if (externalScreen) {
+        const { left, top, width, height } = externalScreen;
+        window.open(
+          '/projection',
+          'booth_projection',
+          `left=${left},top=${top},width=${width},height=${height},menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=no`
+        );
+      } else {
+        console.log('No external screen detected.');
+        window.open('/projection', 'booth_projection', 'width=800,height=600');
+      }
+    } catch (error) {
+      console.error('Error opening projection:', error);
+      window.open('/projection', 'booth_projection', 'width=800,height=600');
+    }
+  };
+
+  const handleDualScreenCapture = () => {
+    if (broadcastChannelRef.current) {
+      broadcastChannelRef.current.postMessage({ action: 'CLOSE' });
+    }
+    console.log('Projection closed for capture.');
+  };
+
+  // --- Projection Logic End ---
+
   // Use ref for countdown to access in callbacks
   const countdownRef = useRef<ReturnType<typeof useCountdown> | null>(null);
 
   const handleCaptureComplete = useCallback(() => {
+    // Close projection window before capture to avoid infinite mirror or interference
+    handleDualScreenCapture();
     // Trigger flash
     setIsFlashing(true);
 
@@ -120,10 +197,34 @@ export default function CapturePage() {
     onComplete: handleCaptureComplete,
   });
 
+  // Sync Countdown with Projection
+  useEffect(() => {
+    if (!broadcastChannelRef.current) return;
+
+    if (phase === 'countdown') {
+      broadcastChannelRef.current.postMessage({
+        action: 'SYNC_TIMER',
+        payload: countdown.secondsRemaining,
+      });
+    } else {
+      broadcastChannelRef.current.postMessage({
+        action: 'SYNC_TIMER',
+        payload: null,
+      });
+    }
+  }, [phase, countdown.secondsRemaining]);
+
   // Store countdown in ref for access in callbacks
   useEffect(() => {
     countdownRef.current = countdown;
   }, [countdown]);
+
+  // Reset countdown when event loads to use correct countdown_seconds
+  useEffect(() => {
+    if (event && phase === "ready") {
+      countdown.reset();
+    }
+  }, [event]);
 
   // Initialize on mount: clear photos and start camera
   useEffect(() => {
@@ -352,6 +453,24 @@ export default function CapturePage() {
           )}
         </AnimatePresence>
       </div>
+
+      {/* Projection Toggle Button */}
+      <AnimatePresence>
+        {phase === "ready" && isCameraReady && (
+          <motion.button
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={openProjection}
+            className="absolute top-4 left-4 z-30 w-12 h-12 bg-black/30 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-black/50 transition-colors"
+            title="Start External Projection"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+          </motion.button>
+        )}
+      </AnimatePresence>
 
       {/* Camera switch button */}
       <AnimatePresence>

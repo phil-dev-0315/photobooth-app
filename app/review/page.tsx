@@ -31,7 +31,7 @@ export default function ReviewPage() {
   }, []);
 
   const PHOTOS_PER_SESSION = event?.photos_per_session || 3;
-  const isComplete = photos.length >= PHOTOS_PER_SESSION;
+  const isComplete = !isLoadingEvent && photos.length >= PHOTOS_PER_SESSION;
 
   // Redirect if no photos
   useEffect(() => {
@@ -64,7 +64,11 @@ export default function ReviewPage() {
         <div className="max-w-md mx-auto flex items-center justify-between">
           <h1 className="text-xl font-bold text-gray-900">Review Photos</h1>
           <span className="text-sm text-gray-500">
-            {photos.length} / {PHOTOS_PER_SESSION}
+            {isLoadingEvent ? (
+              <span className="inline-block w-12 h-4 bg-gray-200 rounded animate-pulse" />
+            ) : (
+              `${photos.length} / ${PHOTOS_PER_SESSION}`
+            )}
           </span>
         </div>
       </motion.header>
