@@ -7,17 +7,24 @@ import { useSession } from "@/contexts/SessionContext";
 import { getActiveEvent, getEventLayouts, getEventStickers } from "@/lib/events";
 import PhotoCompositor, { PhotoCompositorHandle } from "@/components/PhotoCompositor";
 import { Button } from "@/components/ui/Button";
+import { useSessionSave } from "@/hooks/useSessionSave";
+import QRCodeDisplay from "@/components/QRCodeDisplay";
+import { PrintOverlay } from "@/components/PrintAnimation";
 import type { Event, EventLayout, Sticker, PlacedSticker } from "@/types";
 
 export default function CompositeV2Page() {
   const router = useRouter();
-  const { photos, message } = useSession();
+  const { photos, message, clearPhotos } = useSession();
   const [event, setEvent] = useState<Event | null>(null);
   const [layouts, setLayouts] = useState<EventLayout[]>([]);
   const [selectedLayout, setSelectedLayout] = useState<EventLayout | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isDownloading, setIsDownloading] = useState(false);
   const compositorRef = useRef<PhotoCompositorHandle>(null);
+
+  // Session save state
+  const { saveSession, isLoading: isSaving, error: saveError, sessionData, reset: resetSaveState } = useSessionSave();
+  const [isPrinting, setIsPrinting] = useState(false);
 
   // Sticker state
   const [availableStickers, setAvailableStickers] = useState<Sticker[]>([]);
@@ -135,6 +142,40 @@ export default function CompositeV2Page() {
 
   const handleLayoutChange = (layout: EventLayout) => {
     setSelectedLayout(layout);
+  };
+
+  // Save session handler
+  const handleSaveSession = async () => {
+    if (!compositorRef.current || !event) return;
+
+    try {
+      const dataUrl = compositorRef.current.exportImage();
+      if (dataUrl) {
+        await saveSession(dataUrl, event.id, message || undefined);
+      } else {
+        alert("Failed to generate image for saving");
+      }
+    } catch (error) {
+      console.error("Error saving session:", error);
+      alert("Failed to save session");
+    }
+  };
+
+  // Print handler
+  const handlePrint = () => {
+    setIsPrinting(true);
+  };
+
+  const handlePrintComplete = () => {
+    setIsPrinting(false);
+    window.print();
+  };
+
+  // Start new session
+  const handleNewSession = () => {
+    clearPhotos();
+    resetSaveState();
+    router.push("/capture");
   };
 
   if (photos.length === 0) {
@@ -286,48 +327,117 @@ export default function CompositeV2Page() {
 
             {/* Actions */}
             <div className="space-y-3">
-              <Button
-                onClick={handleDownload}
-                variant="primary"
-                size="lg"
-                fullWidth
-                disabled={isDownloading}
-              >
-                <span className="flex items-center justify-center gap-2">
-                  {isDownloading ? (
-                    <>
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>Downloading...</span>
-                    </>
-                  ) : (
-                    <>
-                      <svg
-                        className="w-5 h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                        />
+              {/* Show success state with QR code after saving */}
+              {sessionData ? (
+                <div className="bg-white rounded-lg shadow-lg p-6 space-y-6">
+                  <div className="text-center">
+                    <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
-                      <span>Download</span>
-                    </>
-                  )}
-                </span>
-              </Button>
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900">Photo Saved!</h3>
+                    <p className="text-sm text-gray-500 mt-1">Scan QR code to download on your phone</p>
+                  </div>
 
-              <Button
-                onClick={() => router.push("/review")}
-                variant="outline"
-                size="lg"
-                fullWidth
-              >
-                Back to Review
-              </Button>
+                  <QRCodeDisplay sessionCode={sessionData.sessionCode} size={180} />
+
+                  <div className="space-y-3">
+                    <Button onClick={handleDownload} variant="outline" size="lg" fullWidth disabled={isDownloading}>
+                      <span className="flex items-center justify-center gap-2">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        <span>Download</span>
+                      </span>
+                    </Button>
+
+                    <Button onClick={handlePrint} variant="outline" size="lg" fullWidth>
+                      <span className="flex items-center justify-center gap-2">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                        </svg>
+                        <span>Print</span>
+                      </span>
+                    </Button>
+
+                    <Button onClick={handleNewSession} variant="primary" size="lg" fullWidth>
+                      <span className="flex items-center justify-center gap-2">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                        <span>Start New Session</span>
+                      </span>
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Save Error */}
+                  {saveError && (
+                    <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                      {saveError}
+                    </div>
+                  )}
+
+                  <Button
+                    onClick={handleSaveSession}
+                    variant="primary"
+                    size="lg"
+                    fullWidth
+                    disabled={isSaving}
+                  >
+                    <span className="flex items-center justify-center gap-2">
+                      {isSaving ? (
+                        <>
+                          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          <span>Saving...</span>
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          <span>Finish & Save</span>
+                        </>
+                      )}
+                    </span>
+                  </Button>
+
+                  <Button
+                    onClick={handleDownload}
+                    variant="outline"
+                    size="lg"
+                    fullWidth
+                    disabled={isDownloading}
+                  >
+                    <span className="flex items-center justify-center gap-2">
+                      {isDownloading ? (
+                        <>
+                          <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                          <span>Downloading...</span>
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          </svg>
+                          <span>Download Only</span>
+                        </>
+                      )}
+                    </span>
+                  </Button>
+
+                  <Button
+                    onClick={() => router.push("/review")}
+                    variant="ghost"
+                    size="lg"
+                    fullWidth
+                  >
+                    Back to Review
+                  </Button>
+                </>
+              )}
             </div>
           </div>
 
@@ -452,69 +562,125 @@ export default function CompositeV2Page() {
                 </div>
               )}
 
-              {/* Download Actions */}
-              <div className="bg-white rounded-lg shadow-lg p-6 space-y-3">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  Download
-                </h3>
-
-                <Button
-                  onClick={handleDownload}
-                  variant="primary"
-                  size="lg"
-                  fullWidth
-                  disabled={isDownloading}
-                >
-                  <span className="flex items-center justify-center gap-2">
-                    {isDownloading ? (
-                      <>
-                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        <span>Downloading...</span>
-                      </>
-                    ) : (
-                      <>
-                        <svg
-                          className="w-5 h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                          />
+              {/* Actions */}
+              <div className="bg-white rounded-lg shadow-lg p-6 space-y-4">
+                {sessionData ? (
+                  <>
+                    <div className="text-center mb-4">
+                      <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                         </svg>
-                        <span>Download High Quality</span>
-                      </>
-                    )}
-                  </span>
-                </Button>
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-900">Photo Saved!</h3>
+                    </div>
 
-                <Button
-                  onClick={() => router.push("/review")}
-                  variant="outline"
-                  size="lg"
-                  fullWidth
-                >
-                  <span className="flex items-center justify-center gap-2">
-                    <svg
-                      className="w-5 h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
+                    <QRCodeDisplay sessionCode={sessionData.sessionCode} size={160} />
+
+                    <div className="space-y-3 pt-4">
+                      <Button onClick={handleDownload} variant="outline" size="lg" fullWidth disabled={isDownloading}>
+                        <span className="flex items-center justify-center gap-2">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          </svg>
+                          <span>Download</span>
+                        </span>
+                      </Button>
+
+                      <Button onClick={handlePrint} variant="outline" size="lg" fullWidth>
+                        <span className="flex items-center justify-center gap-2">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                          </svg>
+                          <span>Print</span>
+                        </span>
+                      </Button>
+
+                      <Button onClick={handleNewSession} variant="primary" size="lg" fullWidth>
+                        <span className="flex items-center justify-center gap-2">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                          <span>Start New Session</span>
+                        </span>
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      Actions
+                    </h3>
+
+                    {saveError && (
+                      <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                        {saveError}
+                      </div>
+                    )}
+
+                    <Button
+                      onClick={handleSaveSession}
+                      variant="primary"
+                      size="lg"
+                      fullWidth
+                      disabled={isSaving}
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M11 17l-5-5m0 0l5-5m-5 5h12"
-                      />
-                    </svg>
-                    <span>Back to Review</span>
-                  </span>
-                </Button>
+                      <span className="flex items-center justify-center gap-2">
+                        {isSaving ? (
+                          <>
+                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            <span>Saving...</span>
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                            <span>Finish & Save</span>
+                          </>
+                        )}
+                      </span>
+                    </Button>
+
+                    <Button
+                      onClick={handleDownload}
+                      variant="outline"
+                      size="lg"
+                      fullWidth
+                      disabled={isDownloading}
+                    >
+                      <span className="flex items-center justify-center gap-2">
+                        {isDownloading ? (
+                          <>
+                            <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                            <span>Downloading...</span>
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            <span>Download Only</span>
+                          </>
+                        )}
+                      </span>
+                    </Button>
+
+                    <Button
+                      onClick={() => router.push("/review")}
+                      variant="ghost"
+                      size="lg"
+                      fullWidth
+                    >
+                      <span className="flex items-center justify-center gap-2">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 17l-5-5m0 0l5-5m-5 5h12" />
+                        </svg>
+                        <span>Back to Review</span>
+                      </span>
+                    </Button>
+                  </>
+                )}
               </div>
 
               {/* Event Info */}
@@ -539,6 +705,13 @@ export default function CompositeV2Page() {
           </div>
         </div>
       </div>
+
+      {/* Print Animation Overlay */}
+      <PrintOverlay
+        isVisible={isPrinting}
+        compositeUrl={sessionData?.compositeUrl || ""}
+        onComplete={handlePrintComplete}
+      />
     </main>
   );
 }
