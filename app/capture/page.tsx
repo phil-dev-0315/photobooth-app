@@ -219,13 +219,6 @@ export default function CapturePage() {
     countdownRef.current = countdown;
   }, [countdown]);
 
-  // Reset countdown when event loads to use correct countdown_seconds
-  useEffect(() => {
-    if (event && phase === "ready") {
-      countdown.reset();
-    }
-  }, [event]);
-
   // Initialize on mount: clear photos and start camera
   useEffect(() => {
     clearPhotos();

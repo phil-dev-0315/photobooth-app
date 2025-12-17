@@ -38,6 +38,14 @@ export function useCountdown({
     onCompleteRef.current = onComplete;
   }, [onComplete]);
 
+  // Sync secondsRemaining when initialSeconds changes (only when not running)
+  // This ensures the countdown uses the correct value after async data loads
+  useEffect(() => {
+    if (!isRunning && !isComplete) {
+      setSecondsRemaining(initialSeconds);
+    }
+  }, [initialSeconds, isRunning, isComplete]);
+
   const clearCountdownInterval = useCallback(() => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
