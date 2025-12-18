@@ -24,6 +24,8 @@ export function EventForm({ initialData, onSubmit, onCancel, isLoading }: EventF
     default_layout: initialData?.default_layout || '3-vertical',
     stickers_enabled: initialData?.stickers_enabled || false,
     is_premium_frame_enabled: initialData?.is_premium_frame_enabled || false,
+    security_code_enabled: initialData?.security_code_enabled || false,
+    security_code: initialData?.security_code || '',
   });
 
   const [errors, setErrors] = useState<Partial<Record<keyof EventFormData, string>>>({});
@@ -65,6 +67,10 @@ export function EventForm({ initialData, onSubmit, onCancel, isLoading }: EventF
 
     if (formData.message_char_limit < 50 || formData.message_char_limit > 500) {
       newErrors.message_char_limit = 'Must be between 50 and 500';
+    }
+
+    if (formData.security_code_enabled && !formData.security_code?.trim()) {
+      newErrors.security_code = 'Security code is required when enabled';
     }
 
     setErrors(newErrors);
@@ -254,6 +260,42 @@ export function EventForm({ initialData, onSubmit, onCancel, isLoading }: EventF
           <p className="text-sm text-gray-500">
             Allows adding transparent PNG overlays on top of photos. Upload overlays in the Assets section after saving.
           </p>
+        )}
+      </div>
+
+      {/* Security Settings */}
+      <div className="bg-white rounded-lg shadow p-6 space-y-4">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Security Settings</h3>
+
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="security_code_enabled"
+            name="security_code_enabled"
+            checked={formData.security_code_enabled}
+            onChange={handleChange}
+            className="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+          />
+          <label htmlFor="security_code_enabled" className="text-sm font-medium text-gray-700">
+            Require security code to start session
+          </label>
+        </div>
+
+        {formData.security_code_enabled && (
+          <>
+            <Input
+              label="Security Code"
+              name="security_code"
+              value={formData.security_code || ''}
+              onChange={handleChange}
+              error={errors.security_code}
+              placeholder="e.g., WEDDING2024"
+              helperText="Operator must enter this code to start a photobooth session"
+            />
+            <p className="text-sm text-gray-500">
+              This prevents unauthorized use of the photobooth. Share the code only with event staff/operators.
+            </p>
+          </>
         )}
       </div>
 

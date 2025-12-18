@@ -12,6 +12,7 @@ import { Countdown } from "@/components/capture/Countdown";
 import { StartSessionButton } from "@/components/capture/CaptureButton";
 import { FlashOverlay, CaptureIndicator } from "@/components/capture/FlashOverlay";
 import { Button } from "@/components/ui/Button";
+import SecurityCodeGate from "@/components/capture/SecurityCodeGate";
 import { CapturedPhoto, Event } from "@/types";
 
 // Add these types to handle the experimental Multi-Screen Window Placement API
@@ -44,6 +45,7 @@ export default function CapturePage() {
   const { addPhoto, clearPhotos, photos } = useSession();
   const [event, setEvent] = useState<Event | null>(null);
   const [isLoadingEvent, setIsLoadingEvent] = useState(true);
+  const [isCodeVerified, setIsCodeVerified] = useState(false);
 
   // Load active event settings
   useEffect(() => {
@@ -219,17 +221,35 @@ export default function CapturePage() {
     countdownRef.current = countdown;
   }, [countdown]);
 
-  // Initialize on mount: clear photos and start camera
+  // Check if security code is required
+  const requiresSecurityCode = event?.security_code_enabled && event?.security_code;
+  const canProceed = !requiresSecurityCode || isCodeVerified;
+
+  // Initialize on mount: clear photos
   useEffect(() => {
     clearPhotos();
     photoCountRef.current = 0;
-    startCamera();
-
-    return () => {
-      stopCamera();
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Start camera when allowed to proceed (either no security required or code verified)
+  useEffect(() => {
+    if (!isLoadingEvent && canProceed) {
+      startCamera();
+    }
+
+    return () => {
+      if (canProceed) {
+        stopCamera();
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoadingEvent, canProceed]);
+
+  // Handler for successful security code verification
+  const handleCodeVerified = () => {
+    setIsCodeVerified(true);
+  };
 
   // Handle camera error
   useEffect(() => {
@@ -270,6 +290,18 @@ export default function CapturePage() {
           <p className="text-gray-400">Loading event settings...</p>
         </div>
       </main>
+    );
+  }
+
+  // Security code gate - show before camera initialization
+  if (requiresSecurityCode && !isCodeVerified) {
+    return (
+      <SecurityCodeGate
+        eventName={event?.name || 'Photobooth'}
+        securityCode={event?.security_code || ''}
+        onVerified={handleCodeVerified}
+        onCancel={() => router.push('/')}
+      />
     );
   }
 
