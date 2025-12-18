@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
+import EmailModal from '@/components/EmailModal';
 
 interface SessionData {
   id: string;
@@ -22,6 +23,7 @@ interface DownloadClientProps {
 
 export default function DownloadClient({ session }: DownloadClientProps) {
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
 
   const handleDownload = async () => {
     if (!session.compositeUrl) return;
@@ -210,6 +212,23 @@ export default function DownloadClient({ session }: DownloadClientProps) {
               </svg>
               <span>Share</span>
             </button>
+
+            {/* Email Button */}
+            <button
+              onClick={() => setIsEmailModalOpen(true)}
+              disabled={!session.compositeUrl}
+              className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-white hover:bg-gray-50 disabled:bg-gray-100 text-gray-700 font-semibold rounded-xl border border-gray-200 shadow-sm transition-all active:scale-[0.98]"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                />
+              </svg>
+              <span>Email Photo</span>
+            </button>
           </motion.div>
 
           {/* Session Code */}
@@ -223,6 +242,15 @@ export default function DownloadClient({ session }: DownloadClientProps) {
       <footer className="py-4 text-center text-xs text-gray-400">
         Powered by Photobooth App
       </footer>
+
+      {/* Email Modal */}
+      <EmailModal
+        isOpen={isEmailModalOpen}
+        onClose={() => setIsEmailModalOpen(false)}
+        compositeUrl={session.compositeUrl || ''}
+        sessionCode={session.sessionCode}
+        eventName={session.event?.name}
+      />
     </main>
   );
 }

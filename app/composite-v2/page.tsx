@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { useSessionSave } from "@/hooks/useSessionSave";
 import QRCodeDisplay from "@/components/QRCodeDisplay";
 import { PrintOverlay } from "@/components/PrintAnimation";
+import EmailModal from "@/components/EmailModal";
 import type { Event, EventLayout, Sticker, PlacedSticker } from "@/types";
 
 export default function CompositeV2Page() {
@@ -25,6 +26,7 @@ export default function CompositeV2Page() {
   // Session save state
   const { saveSession, isLoading: isSaving, error: saveError, sessionData, reset: resetSaveState } = useSessionSave();
   const [isPrinting, setIsPrinting] = useState(false);
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
 
   // Sticker state
   const [availableStickers, setAvailableStickers] = useState<Sticker[]>([]);
@@ -361,6 +363,15 @@ export default function CompositeV2Page() {
                       </span>
                     </Button>
 
+                    <Button onClick={() => setIsEmailModalOpen(true)} variant="outline" size="lg" fullWidth>
+                      <span className="flex items-center justify-center gap-2">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                        <span>Email</span>
+                      </span>
+                    </Button>
+
                     <Button onClick={handleNewSession} variant="primary" size="lg" fullWidth>
                       <span className="flex items-center justify-center gap-2">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -596,6 +607,15 @@ export default function CompositeV2Page() {
                         </span>
                       </Button>
 
+                      <Button onClick={() => setIsEmailModalOpen(true)} variant="outline" size="lg" fullWidth>
+                        <span className="flex items-center justify-center gap-2">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                          </svg>
+                          <span>Email</span>
+                        </span>
+                      </Button>
+
                       <Button onClick={handleNewSession} variant="primary" size="lg" fullWidth>
                         <span className="flex items-center justify-center gap-2">
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -712,6 +732,17 @@ export default function CompositeV2Page() {
         compositeUrl={sessionData?.compositeUrl || ""}
         onComplete={handlePrintComplete}
       />
+
+      {/* Email Modal */}
+      {sessionData && (
+        <EmailModal
+          isOpen={isEmailModalOpen}
+          onClose={() => setIsEmailModalOpen(false)}
+          compositeUrl={sessionData.compositeUrl}
+          sessionCode={sessionData.sessionCode}
+          eventName={event?.name}
+        />
+      )}
     </main>
   );
 }

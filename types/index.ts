@@ -13,6 +13,8 @@ export interface Event {
   logo_url: string | null;
   stickers_enabled: boolean; // Enable sticker feature for this event
   is_premium_frame_enabled: boolean; // Enable premium overlay frames for this event
+  security_code_enabled: boolean; // Require security code to start session
+  security_code: string | null; // The security code for this event
   created_at: string;
   updated_at: string;
 }
@@ -29,6 +31,8 @@ export interface EventFormData {
   default_layout: string;
   stickers_enabled?: boolean;
   is_premium_frame_enabled?: boolean;
+  security_code_enabled?: boolean;
+  security_code?: string;
 }
 
 // Placeholder for photo positioning
