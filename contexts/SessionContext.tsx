@@ -42,6 +42,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
     setEventId,
     setEvent,
     addPhoto,
+    setPhotos,
     clearPhotos,
     setMessage,
     resetSession,

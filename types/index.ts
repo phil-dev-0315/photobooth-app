@@ -121,6 +121,7 @@ export interface SessionContextValue {
   setEventId: (id: string | null) => void;
   setEvent: (event: Event | null) => void;
   addPhoto: (photo: CapturedPhoto) => void;
+  setPhotos: (photos: CapturedPhoto[]) => void;
   clearPhotos: () => void;
   setMessage: (message: string | null) => void;
   resetSession: () => void;

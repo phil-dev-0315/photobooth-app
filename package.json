@@ -7,7 +7,8 @@
     "dev:network": "next dev --hostname 0.0.0.0 --experimental-https",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "copy-imgly-assets": "curl -L https://staticimgly.com/@imgly/background-removal-data/1.7.0/package.tgz -o /tmp/imgly-assets.tgz && tar -xzf /tmp/imgly-assets.tgz -C /tmp && cp -r /tmp/package/dist/* public/assets/imgly/"
   },
   "repository": {
     "type": "git",
@@ -15,12 +16,14 @@
   },
   "dependencies": {
     "@eslint/eslintrc": "^3.3.3",
+    "@imgly/background-removal": "^1.7.0",
     "@supabase/supabase-js": "^2.87.1",
     "@tailwindcss/postcss": "^4.1.18",
     "framer-motion": "^12.23.26",
     "html-to-image": "^1.11.13",
     "konva": "^10.0.12",
     "next": "^16.0.10",
+    "onnxruntime-web": "^1.21.0",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
