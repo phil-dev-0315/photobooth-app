@@ -213,11 +213,12 @@ export default function DownloadClient({ session }: DownloadClientProps) {
               <span>Share</span>
             </button>
 
-            {/* Email Button */}
+            {/* Email Button - Disabled until custom domain is configured */}
             <button
               onClick={() => setIsEmailModalOpen(true)}
-              disabled={!session.compositeUrl}
-              className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-white hover:bg-gray-50 disabled:bg-gray-100 text-gray-700 font-semibold rounded-xl border border-gray-200 shadow-sm transition-all active:scale-[0.98]"
+              disabled
+              title="Coming soon"
+              className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-white hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed text-gray-700 font-semibold rounded-xl border border-gray-200 shadow-sm transition-all active:scale-[0.98]"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
@@ -227,7 +228,7 @@ export default function DownloadClient({ session }: DownloadClientProps) {
                   d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
                 />
               </svg>
-              <span>Email Photo</span>
+              <span>Email Photo (Coming Soon)</span>
             </button>
           </motion.div>
 
