@@ -743,6 +743,16 @@ export default function CompositeV2Page() {
           eventName={event?.name}
         />
       )}
+
+      {/* Hidden print container - only visible when printing */}
+      {sessionData?.compositeUrl && (
+        <div className="print-container">
+          <img
+            src={sessionData.compositeUrl}
+            alt="Photo composite"
+          />
+        </div>
+      )}
     </main>
   );
 }
