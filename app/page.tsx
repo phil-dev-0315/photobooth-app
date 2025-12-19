@@ -104,9 +104,6 @@ export default function HomePage() {
             </div>
             <h2 className="text-2xl font-semibold text-slate-800 mb-3">No Active Event</h2>
             <p className="text-slate-500 mb-8">Please contact the event organizer to activate an event.</p>
-            <Button onClick={() => router.push("/admin")} variant="outline">
-              Admin Panel
-            </Button>
           </motion.div>
         ) : (
           // Active event display
@@ -271,7 +268,7 @@ export default function HomePage() {
         transition={{ delay: 0.8 }}
         className="absolute bottom-6 text-slate-400 text-xs"
       >
-        Photobooth App
+        SNAPTAP
       </motion.footer>
     </main>
   );

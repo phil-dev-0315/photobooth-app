@@ -205,7 +205,7 @@ export default function CompositeV2Page() {
       >
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Your Composite</h1>
+            <h1 className="text-xl font-bold text-gray-900">SNAPTAP</h1>
             {event && (
               <p className="text-sm text-gray-600">{event.name}</p>
             )}

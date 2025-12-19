@@ -41,21 +41,24 @@ async function getUniqueSessionCode(): Promise<string> {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { eventId, imageData, message } = body;
+    // Parse FormData instead of JSON to handle larger file uploads
+    const formData = await request.formData();
+    const file = formData.get('file') as File | null;
+    const eventId = formData.get('eventId') as string | null;
+    const message = formData.get('message') as string | null;
 
     // Validate required fields
-    if (!eventId || !imageData) {
+    if (!eventId || !file) {
       return NextResponse.json(
-        { error: 'Missing required fields: eventId and imageData are required' },
+        { error: 'Missing required fields: eventId and file are required' },
         { status: 400 }
       );
     }
 
-    // Validate imageData is a base64 data URL
-    if (!imageData.startsWith('data:image/')) {
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
       return NextResponse.json(
-        { error: 'Invalid image data format. Expected base64 data URL.' },
+        { error: 'Invalid file type. Expected an image file.' },
         { status: 400 }
       );
     }
@@ -63,9 +66,9 @@ export async function POST(request: NextRequest) {
     // Generate unique session code
     const sessionCode = await getUniqueSessionCode();
 
-    // Convert base64 to buffer
-    const base64Data = imageData.split(',')[1];
-    const buffer = Buffer.from(base64Data, 'base64');
+    // Convert File to buffer
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
 
     // Generate unique filename
     const timestamp = Date.now();

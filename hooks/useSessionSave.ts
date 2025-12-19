@@ -32,16 +32,26 @@ export function useSessionSave(): UseSessionSaveReturn {
     setError(null);
 
     try {
+      // Convert base64 data URL to Blob for efficient upload
+      const base64Data = dataUrl.split(',')[1];
+      const byteCharacters = atob(base64Data);
+      const byteArray = new Uint8Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteArray[i] = byteCharacters.charCodeAt(i);
+      }
+      const blob = new Blob([byteArray], { type: 'image/png' });
+
+      // Send as FormData to avoid JSON body size limits
+      const formData = new FormData();
+      formData.append('file', blob, `composite-${Date.now()}.png`);
+      formData.append('eventId', eventId);
+      if (message) {
+        formData.append('message', message);
+      }
+
       const response = await fetch('/api/sessions', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          eventId,
-          imageData: dataUrl,
-          message: message || null,
-        }),
+        body: formData,
       });
 
       const json = await response.json();

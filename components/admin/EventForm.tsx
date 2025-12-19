@@ -174,8 +174,8 @@ export function EventForm({ initialData, onSubmit, onCancel, isLoading }: EventF
           onChange={handleChange}
           options={[
             { value: '3-vertical', label: '3-Photo Vertical Strip' },
-            { value: '2x2', label: '2x2 Grid (Future)' },
-            { value: 'single', label: 'Single Photo (Future)' },
+            { value: '2x2', label: '2x2 Grid' },
+            { value: 'single', label: 'Single Photo' },
           ]}
         />
       </div>
