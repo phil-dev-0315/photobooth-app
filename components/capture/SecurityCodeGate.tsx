@@ -83,7 +83,7 @@ export default function SecurityCodeGate({
             {/* Code Input */}
             <div>
               <input
-                type="text"
+                type="password"
                 value={codeInput}
                 onChange={handleInputChange}
                 placeholder="Enter code"
