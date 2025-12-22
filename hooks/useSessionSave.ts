@@ -32,7 +32,7 @@ export function useSessionSave(): UseSessionSaveReturn {
     setError(null);
 
     try {
-      // Convert base64 data URL to Blob for efficient upload
+      // Convert base64 data URL to Blob
       const base64Data = dataUrl.split(',')[1];
       const byteCharacters = atob(base64Data);
       const byteArray = new Uint8Array(byteCharacters.length);
@@ -41,31 +41,57 @@ export function useSessionSave(): UseSessionSaveReturn {
       }
       const blob = new Blob([byteArray], { type: 'image/png' });
 
-      // Send as FormData to avoid JSON body size limits
-      const formData = new FormData();
-      formData.append('file', blob, `composite-${Date.now()}.png`);
-      formData.append('eventId', eventId);
-      if (message) {
-        formData.append('message', message);
-      }
-
-      const response = await fetch('/api/sessions', {
+      // Step 1: Get a signed upload URL from our API (small request)
+      const uploadUrlResponse = await fetch('/api/upload-url', {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId }),
       });
 
-      const json = await response.json();
+      if (!uploadUrlResponse.ok) {
+        const uploadUrlError = await uploadUrlResponse.json();
+        throw new Error(uploadUrlError.error || 'Failed to get upload URL');
+      }
 
-      if (!response.ok) {
-        throw new Error(json.error || 'Failed to save session');
+      const { data: uploadData } = await uploadUrlResponse.json();
+
+      // Step 2: Upload directly to Supabase Storage (bypasses Vercel size limit)
+      const uploadResponse = await fetch(uploadData.signedUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'image/png',
+        },
+        body: blob,
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error('Failed to upload composite image');
+      }
+
+      // Step 3: Create session record with the uploaded file path (small request)
+      const sessionResponse = await fetch('/api/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventId,
+          compositeUrl: uploadData.publicUrl,
+          filePath: uploadData.path,
+          message: message || null,
+        }),
+      });
+
+      const sessionJson = await sessionResponse.json();
+
+      if (!sessionResponse.ok) {
+        throw new Error(sessionJson.error || 'Failed to save session');
       }
 
       const data: SessionData = {
-        sessionCode: json.data.sessionCode,
-        compositeUrl: json.data.compositeUrl,
-        sessionId: json.data.sessionId,
-        message: json.data.message,
-        createdAt: json.data.createdAt,
+        sessionCode: sessionJson.data.sessionCode,
+        compositeUrl: sessionJson.data.compositeUrl,
+        sessionId: sessionJson.data.sessionId,
+        message: sessionJson.data.message,
+        createdAt: sessionJson.data.createdAt,
       };
 
       setSessionData(data);

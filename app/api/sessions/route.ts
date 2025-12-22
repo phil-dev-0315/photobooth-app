@@ -41,61 +41,19 @@ async function getUniqueSessionCode(): Promise<string> {
 
 export async function POST(request: NextRequest) {
   try {
-    // Parse FormData instead of JSON to handle larger file uploads
-    const formData = await request.formData();
-    const file = formData.get('file') as File | null;
-    const eventId = formData.get('eventId') as string | null;
-    const message = formData.get('message') as string | null;
+    // Parse JSON body (file already uploaded directly to Supabase)
+    const { eventId, compositeUrl, filePath, message } = await request.json();
 
     // Validate required fields
-    if (!eventId || !file) {
+    if (!eventId || !compositeUrl) {
       return NextResponse.json(
-        { error: 'Missing required fields: eventId and file are required' },
-        { status: 400 }
-      );
-    }
-
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      return NextResponse.json(
-        { error: 'Invalid file type. Expected an image file.' },
+        { error: 'Missing required fields: eventId and compositeUrl are required' },
         { status: 400 }
       );
     }
 
     // Generate unique session code
     const sessionCode = await getUniqueSessionCode();
-
-    // Convert File to buffer
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
-    // Generate unique filename
-    const timestamp = Date.now();
-    const randomStr = Math.random().toString(36).substring(2, 8);
-    const fileName = `${eventId}/${timestamp}-${randomStr}.png`;
-
-    // Upload to composites bucket
-    const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
-      .from('composites')
-      .upload(fileName, buffer, {
-        contentType: 'image/png',
-        cacheControl: '3600',
-        upsert: false
-      });
-
-    if (uploadError) {
-      console.error('Upload error:', uploadError);
-      return NextResponse.json(
-        { error: `Failed to upload composite: ${uploadError.message}` },
-        { status: 500 }
-      );
-    }
-
-    // Get public URL
-    const { data: { publicUrl } } = supabaseAdmin.storage
-      .from('composites')
-      .getPublicUrl(fileName);
 
     // Insert session record with generated session_code
     const { data: session, error: sessionError } = await supabaseAdmin
@@ -104,7 +62,7 @@ export async function POST(request: NextRequest) {
         {
           event_id: eventId,
           session_code: sessionCode,
-          composite_url: publicUrl,
+          composite_url: compositeUrl,
           message: message || null,
           is_printed: false
         }
@@ -114,7 +72,9 @@ export async function POST(request: NextRequest) {
 
     if (sessionError) {
       // Clean up uploaded file if session creation fails
-      await supabaseAdmin.storage.from('composites').remove([fileName]);
+      if (filePath) {
+        await supabaseAdmin.storage.from('composites').remove([filePath]);
+      }
       console.error('Session creation error:', sessionError);
       return NextResponse.json(
         { error: `Failed to create session: ${sessionError.message}` },
