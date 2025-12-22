@@ -97,11 +97,21 @@ export interface Photo {
   created_at: string;
 }
 
+// Crop metadata for photo positioning within frame placeholder
+export interface CropMetadata {
+  // Normalized values (0-1 scale, relative to image dimensions)
+  // Represents how the image is positioned/zoomed within the crop area
+  offsetX: number; // Horizontal offset (-1 to 1, 0 = centered)
+  offsetY: number; // Vertical offset (-1 to 1, 0 = centered)
+  zoom: number;    // Zoom level (1 = fit, >1 = zoomed in)
+}
+
 // Captured photo (client-side before upload)
 export interface CapturedPhoto {
   id: string;
   dataUrl: string;
   timestamp: number;
+  cropMetadata?: CropMetadata; // Optional crop/position adjustment
 }
 
 // Camera state for the camera hook
@@ -124,6 +134,7 @@ export interface SessionContextValue {
   clearPhotos: () => void;
   setMessage: (message: string | null) => void;
   resetSession: () => void;
+  updatePhotoCrop: (photoId: string, cropMetadata: CropMetadata) => void;
 }
 
 // Button types
