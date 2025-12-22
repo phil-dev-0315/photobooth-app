@@ -7,7 +7,7 @@ import {
   useCallback,
   ReactNode,
 } from "react";
-import { CapturedPhoto, Event, SessionContextValue } from "@/types";
+import { CapturedPhoto, CropMetadata, Event, SessionContextValue } from "@/types";
 
 const SessionContext = createContext<SessionContextValue | null>(null);
 
@@ -29,6 +29,14 @@ export function SessionProvider({ children }: SessionProviderProps) {
     setPhotos([]);
   }, []);
 
+  const updatePhotoCrop = useCallback((photoId: string, cropMetadata: CropMetadata) => {
+    setPhotos((prev) =>
+      prev.map((photo) =>
+        photo.id === photoId ? { ...photo, cropMetadata } : photo
+      )
+    );
+  }, []);
+
   const resetSession = useCallback(() => {
     setPhotos([]);
     setMessage(null);
@@ -45,6 +53,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
     clearPhotos,
     setMessage,
     resetSession,
+    updatePhotoCrop,
   };
 
   return (

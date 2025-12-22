@@ -4,34 +4,47 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useSession } from "@/contexts/SessionContext";
-import { getActiveEvent } from "@/lib/events";
+import { getActiveEvent, getEventLayouts } from "@/lib/events";
 import { PhotoGrid } from "@/components/review/PhotoGrid";
 import { Button } from "@/components/ui/Button";
-import type { Event } from "@/types";
+import type { Event, EventLayout } from "@/types";
 
 export default function ReviewPage() {
   const router = useRouter();
-  const { photos, clearPhotos } = useSession();
+  const { photos, clearPhotos, updatePhotoCrop } = useSession();
   const [event, setEvent] = useState<Event | null>(null);
+  const [layout, setLayout] = useState<EventLayout | null>(null);
   const [isLoadingEvent, setIsLoadingEvent] = useState(true);
 
-  // Load active event settings
+  // Load active event settings and layout
   useEffect(() => {
-    const loadEvent = async () => {
+    const loadEventData = async () => {
       try {
         const activeEvent = await getActiveEvent();
         setEvent(activeEvent);
+
+        // Load layout to get placeholder aspect ratio
+        if (activeEvent) {
+          const layouts = await getEventLayouts(activeEvent.id);
+          const defaultLayout = layouts.find((l) => l.is_default) || layouts[0];
+          setLayout(defaultLayout || null);
+        }
       } catch (error) {
         console.error("Error loading event:", error);
       } finally {
         setIsLoadingEvent(false);
       }
     };
-    loadEvent();
+    loadEventData();
   }, []);
 
   const PHOTOS_PER_SESSION = event?.photos_per_session || 3;
   const isComplete = !isLoadingEvent && photos.length >= PHOTOS_PER_SESSION;
+
+  // Calculate placeholder aspect ratio from layout
+  const placeholderAspectRatio = layout?.placeholders?.[0]
+    ? layout.placeholders[0].width / layout.placeholders[0].height
+    : 4 / 3; // Default to 4:3
 
   // Redirect if no photos
   useEffect(() => {
@@ -76,8 +89,13 @@ export default function ReviewPage() {
       {/* Scrollable Content */}
       <div className="flex-1 overflow-auto px-4 py-6">
         <div className="max-w-md mx-auto">
-          {/* Photos grid */}
-          <PhotoGrid photos={photos} maxPhotos={PHOTOS_PER_SESSION} />
+          {/* Photos grid - tap to adjust crop/position */}
+          <PhotoGrid
+            photos={photos}
+            maxPhotos={PHOTOS_PER_SESSION}
+            onPhotoCropUpdate={updatePhotoCrop}
+            placeholderAspectRatio={placeholderAspectRatio}
+          />
         </div>
       </div>
 

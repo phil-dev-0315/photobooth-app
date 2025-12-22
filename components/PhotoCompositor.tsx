@@ -3,12 +3,13 @@
 import { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from "react";
 import { Stage, Layer, Image as KonvaImage, Text, Group } from "react-konva";
 import useImage from "use-image";
-import type { PlaceholderShape, PlacedSticker, FrameOverlay } from "@/types";
+import type { PlaceholderShape, PlacedSticker, FrameOverlay, CropMetadata } from "@/types";
 import StickerLayer from "./StickerLayer";
 
 interface Photo {
   id: string;
   dataUrl: string;
+  cropMetadata?: CropMetadata; // User-defined crop/position adjustment
 }
 
 interface PhotoPlaceholder {
@@ -211,9 +212,11 @@ const PhotoCompositor = forwardRef<PhotoCompositorHandle, PhotoCompositorProps>(
   };
 
   // Calculate crop parameters for "cover" fit (fill placeholder, crop excess)
+  // Applies user's cropMetadata adjustments if available
   const getCropParams = (
     img: HTMLImageElement,
-    placeholder: PhotoPlaceholder
+    placeholder: PhotoPlaceholder,
+    cropMetadata?: CropMetadata
   ) => {
     const imgRatio = img.naturalWidth / img.naturalHeight;
     const placeholderRatio = placeholder.width / placeholder.height;
@@ -231,6 +234,35 @@ const PhotoCompositor = forwardRef<PhotoCompositorHandle, PhotoCompositorProps>(
       // Image is taller - crop top/bottom
       cropHeight = img.naturalWidth / placeholderRatio;
       cropY = (img.naturalHeight - cropHeight) / 2;
+    }
+
+    // Apply user's crop adjustments if available
+    if (cropMetadata) {
+      const { offsetX, offsetY, zoom } = cropMetadata;
+
+      // Apply zoom - zooming in means we crop more (smaller crop area)
+      const zoomFactor = 1 / zoom;
+      const zoomedCropWidth = cropWidth * zoomFactor;
+      const zoomedCropHeight = cropHeight * zoomFactor;
+
+      // Calculate new crop position based on zoom
+      const centerX = cropX + cropWidth / 2;
+      const centerY = cropY + cropHeight / 2;
+
+      // Apply offset - "scroll" behavior matching CSS transform
+      // Positive offsetX = user dragged right = see RIGHT side
+      // To see RIGHT side: crop window moves RIGHT (cropX increases)
+      const maxOffsetX = (cropWidth - zoomedCropWidth) / 2;
+      const maxOffsetY = (cropHeight - zoomedCropHeight) / 2;
+
+      cropX = centerX - zoomedCropWidth / 2 + offsetX * maxOffsetX;
+      cropY = centerY - zoomedCropHeight / 2 + offsetY * maxOffsetY;
+      cropWidth = zoomedCropWidth;
+      cropHeight = zoomedCropHeight;
+
+      // Clamp to image bounds
+      cropX = Math.max(0, Math.min(img.naturalWidth - cropWidth, cropX));
+      cropY = Math.max(0, Math.min(img.naturalHeight - cropHeight, cropY));
     }
 
     return { cropX, cropY, cropWidth, cropHeight };
@@ -331,7 +363,8 @@ const PhotoCompositor = forwardRef<PhotoCompositorHandle, PhotoCompositorProps>(
             if (!photoImage || !photoPositions[index]) return null;
 
             const pos = photoPositions[index];
-            const crop = getCropParams(photoImage, pos);
+            const photo = photos[index];
+            const crop = getCropParams(photoImage, pos, photo?.cropMetadata);
             const isCircle = pos.shape === "circle";
 
             // For circular shapes, use Group with clipFunc
