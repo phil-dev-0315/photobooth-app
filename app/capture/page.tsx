@@ -6,11 +6,17 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useCamera } from "@/hooks/useCamera";
 import { useCountdown } from "@/hooks/useCountdown";
 import { useSession } from "@/contexts/SessionContext";
-import { getActiveEvent } from "@/lib/events";
+import { getActiveEvent, getEventLayouts } from "@/lib/events";
+import type { EventLayout } from "@/types";
 import { CameraPreview } from "@/components/capture/CameraPreview";
 import { Countdown } from "@/components/capture/Countdown";
 import { StartSessionButton } from "@/components/capture/CaptureButton";
 import { FlashOverlay, CaptureIndicator } from "@/components/capture/FlashOverlay";
+import { PosePrompt } from "@/components/capture/PosePrompt";
+import { CelebrationOverlay } from "@/components/capture/CelebrationOverlay";
+import { GetReadyOverlay } from "@/components/capture/GetReadyOverlay";
+import { CropGuideOverlay } from "@/components/capture/CropGuideOverlay";
+import { AttractScreen } from "@/components/AttractScreen";
 import { Button } from "@/components/ui/Button";
 import SecurityCodeGate from "@/components/capture/SecurityCodeGate";
 import { CapturedPhoto, Event } from "@/types";
@@ -36,37 +42,47 @@ declare global {
   }
 }
 
-type CapturePhase = "ready" | "countdown" | "capturing" | "between" | "complete";
+type CapturePhase = "attract" | "getready" | "countdown" | "capturing" | "between" | "complete";
 
-const BETWEEN_PHOTOS_DELAY = 1500; // ms
+const BETWEEN_PHOTOS_DELAY = 1500; // ms before showing pose prompt
+const POSE_PROMPT_DURATION = 3000; // ms to show pose prompt
+const GET_READY_DURATION = 3000; // ms to show "Get Ready"
 
 export default function CapturePage() {
   const router = useRouter();
   const { addPhoto, clearPhotos, photos } = useSession();
   const [event, setEvent] = useState<Event | null>(null);
+  const [layout, setLayout] = useState<EventLayout | null>(null);
   const [isLoadingEvent, setIsLoadingEvent] = useState(true);
   const [isCodeVerified, setIsCodeVerified] = useState(false);
 
-  // Load active event settings
+  // Load active event settings and layout
   useEffect(() => {
-    const loadEvent = async () => {
+    const loadEventData = async () => {
       try {
         const activeEvent = await getActiveEvent();
         setEvent(activeEvent);
+
+        // Load layout to get placeholder aspect ratio for crop guide
+        if (activeEvent) {
+          const layouts = await getEventLayouts(activeEvent.id);
+          const defaultLayout = layouts.find((l) => l.is_default) || layouts[0];
+          setLayout(defaultLayout || null);
+        }
       } catch (error) {
         console.error("Error loading event:", error);
       } finally {
         setIsLoadingEvent(false);
       }
     };
-    loadEvent();
+    loadEventData();
   }, []);
 
   // Use event settings or defaults
   const PHOTOS_PER_SESSION = event?.photos_per_session || 3;
   const COUNTDOWN_SECONDS = event?.countdown_seconds || 5;
 
-  const [phase, setPhase] = useState<CapturePhase>("ready");
+  const [phase, setPhase] = useState<CapturePhase>("attract");
   const [isFlashing, setIsFlashing] = useState(false);
   const [lastCapturedPhoto, setLastCapturedPhoto] = useState<string | null>(null);
   const [showIndicator, setShowIndicator] = useState(false);
@@ -181,14 +197,19 @@ export default function CapturePage() {
         // Navigate to review after a short delay
         setTimeout(() => {
           router.push("/review");
-        }, 1500);
+        }, 2000);
       } else {
-        // Prepare for next photo
-        setPhase("between");
+        // Prepare for next photo - show capture indicator first
         setTimeout(() => {
+          // Hide indicator and show pose prompt
           setShowIndicator(false);
-          setPhase("countdown");
-          countdownRef.current?.restart();
+          setPhase("between");
+
+          // After pose prompt duration, start countdown
+          setTimeout(() => {
+            setPhase("countdown");
+            countdownRef.current?.restart();
+          }, POSE_PROMPT_DURATION);
         }, BETWEEN_PHOTOS_DELAY);
       }
     }
@@ -264,10 +285,13 @@ export default function CapturePage() {
     startCamera();
   };
 
-  const handleStartSession = () => {
-    if (!isCameraReady) return;
-    setPhase("countdown");
-    countdown.start();
+  const handleAttractScreenTap = () => {
+    setPhase("getready");
+    // Auto-start countdown after GET_READY_DURATION
+    setTimeout(() => {
+      setPhase("countdown");
+      countdown.start();
+    }, GET_READY_DURATION);
   };
 
   const handleFlashComplete = () => {
@@ -279,6 +303,11 @@ export default function CapturePage() {
     stopCamera();
     clearPhotos();
     router.push("/");
+  };
+
+  const handleBackToAttract = () => {
+    countdown.pause();
+    setPhase("attract");
   };
 
   // Loading state
@@ -351,6 +380,26 @@ export default function CapturePage() {
         isMirrored={currentFacingMode === "user"}
       />
 
+      {/* Crop Guide Overlay - shows safe zone during capture */}
+      <CropGuideOverlay
+        placeholderAspectRatio={
+          layout?.placeholders?.[0]
+            ? layout.placeholders[0].width / layout.placeholders[0].height
+            : 4 / 3
+        }
+        isVisible={phase === "countdown" || phase === "between" || phase === "capturing"}
+      />
+
+      {/* Attract Screen (shown when camera is ready, before session starts) */}
+      <AnimatePresence>
+        {phase === "attract" && isCameraReady && event && (
+          <AttractScreen event={event} onStart={handleAttractScreenTap} />
+        )}
+      </AnimatePresence>
+
+      {/* Get Ready Overlay (shown after attract, before countdown) */}
+      <GetReadyOverlay isVisible={phase === "getready"} />
+
       {/* Flash Overlay */}
       <FlashOverlay isFlashing={isFlashing} onFlashComplete={handleFlashComplete} />
 
@@ -369,9 +418,18 @@ export default function CapturePage() {
         isVisible={showIndicator}
       />
 
-      {/* Photo counter (always visible except ready state) */}
+      {/* Pose Prompt (shown between photos) */}
+      <PosePrompt
+        isVisible={phase === "between"}
+        photoNumber={currentPhotoIndex + 1}
+      />
+
+      {/* Celebration Overlay (shown when complete) */}
+      <CelebrationOverlay isVisible={phase === "complete"} />
+
+      {/* Photo counter (visible during active capture) */}
       <AnimatePresence>
-        {phase !== "ready" && phase !== "complete" && (
+        {phase !== "attract" && phase !== "getready" && phase !== "complete" && (
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -399,18 +457,17 @@ export default function CapturePage() {
       {/* Controls */}
       <div className="absolute bottom-0 left-0 right-0 p-6 safe-area-pb">
         <AnimatePresence mode="wait">
-          {/* Ready state - Show start button */}
-          {phase === "ready" && isCameraReady && (
+          {/* Get Ready state - show cancel option */}
+          {phase === "getready" && (
             <motion.div
-              key="start"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 20 }}
+              key="getready"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
               className="flex flex-col items-center gap-4"
             >
-              <StartSessionButton onClick={handleStartSession} />
               <button
-                onClick={handleCancel}
+                onClick={handleBackToAttract}
                 className="text-white/60 hover:text-white text-sm"
               >
                 Cancel
@@ -450,38 +507,23 @@ export default function CapturePage() {
             </motion.div>
           )}
 
-          {/* Complete state - Show success */}
+          {/* Complete state - CelebrationOverlay handles the display */}
           {phase === "complete" && (
             <motion.div
               key="complete"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
               className="flex flex-col items-center"
             >
-              <div className="bg-green-500 text-white px-6 py-3 rounded-full flex items-center gap-2">
-                <svg
-                  className="w-6 h-6"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M5 13l4 4L19 7"
-                  />
-                </svg>
-                <span className="font-semibold">All photos captured!</span>
-              </div>
+              {/* Empty - CelebrationOverlay shows the success message */}
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
-      {/* Projection Toggle Button */}
+      {/* Projection Toggle Button - only in attract phase */}
       <AnimatePresence>
-        {phase === "ready" && isCameraReady && (
+        {phase === "attract" && isCameraReady && event && (
           <motion.button
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -497,9 +539,9 @@ export default function CapturePage() {
         )}
       </AnimatePresence>
 
-      {/* Camera switch button */}
+      {/* Camera switch button - only in attract phase */}
       <AnimatePresence>
-        {phase === "ready" && isCameraReady && (
+        {phase === "attract" && isCameraReady && (
           <motion.button
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
