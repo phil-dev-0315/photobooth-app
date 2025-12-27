@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useCamera } from "@/hooks/useCamera";
 import { useCountdown } from "@/hooks/useCountdown";
 import { useCameraSound } from "@/hooks/useCameraSound";
+import { useVoiceGuidance } from "@/hooks/useVoiceGuidance";
 import { useSession } from "@/contexts/SessionContext";
 import { getActiveEvent, getEventLayouts } from "@/lib/events";
 import { CameraPreview } from "@/components/capture/CameraPreview";
@@ -125,6 +126,22 @@ export default function CapturePage() {
   // Camera sound effects
   const { playShutterSound } = useCameraSound({ volume: 0.6 });
 
+  // Voice guidance (audio instructions) - fun, energetic female voice
+  const {
+    speakGetReady,
+    speakCountdown,
+    speakCapture,
+    speakAfterCapture,
+    speakBetweenPhotos,
+    speakComplete,
+    stop: stopVoice,
+  } = useVoiceGuidance({
+    enabled: event?.voice_guidance_enabled ?? false,
+    volume: 1,
+    rate: 1.5, // Upbeat pace without sounding rushed
+    pitch: 2.3, // Brighter tone, still sounds natural
+  });
+
   // --- Projection Logic Start ---
   const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
 
@@ -211,16 +228,19 @@ export default function CapturePage() {
       // Check if we have all photos
       if (newPhotoCount >= targetPhotoCount) {
         setPhase("complete");
+        speakComplete(); // Voice: "All done!"
         // Navigate to review after a short delay
         setTimeout(() => {
           router.push("/review");
         }, 2000);
       } else {
+        speakAfterCapture(); // Voice: "Great shot!" / "Perfect!" etc.
         // Prepare for next photo - show capture indicator first
         setTimeout(() => {
           // Hide indicator and show pose prompt
           setShowIndicator(false);
           setPhase("between");
+          speakBetweenPhotos(); // Voice: "Strike a pose!" etc.
 
           // After pose prompt duration, start countdown
           setTimeout(() => {
@@ -230,7 +250,7 @@ export default function CapturePage() {
         }, BETWEEN_PHOTOS_DELAY);
       }
     }
-  }, [capturePhoto, addPhoto, router, playShutterSound]);
+  }, [capturePhoto, addPhoto, router, playShutterSound, speakAfterCapture, speakBetweenPhotos, speakComplete]);
 
   const countdown = useCountdown({
     initialSeconds: COUNTDOWN_SECONDS,
@@ -253,6 +273,29 @@ export default function CapturePage() {
       });
     }
   }, [phase, countdown.secondsRemaining]);
+
+  // Voice guidance for countdown (last 3 seconds) and capture
+  const prevSecondsRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (phase !== 'countdown') {
+      prevSecondsRef.current = null;
+      return;
+    }
+
+    const seconds = countdown.secondsRemaining;
+
+    // Speak countdown for last 3 seconds (3, 2, 1)
+    if (seconds <= 3 && seconds >= 1 && seconds !== prevSecondsRef.current) {
+      speakCountdown(seconds);
+    }
+
+    // Speak "Smile!" right at 0 (capture moment)
+    if (seconds === 0 && prevSecondsRef.current !== 0) {
+      speakCapture();
+    }
+
+    prevSecondsRef.current = seconds;
+  }, [phase, countdown.secondsRemaining, speakCountdown, speakCapture]);
 
   // Store countdown in ref for access in callbacks
   useEffect(() => {
@@ -309,6 +352,7 @@ export default function CapturePage() {
       return;
     }
     setPhase("getready");
+    speakGetReady(); // Voice: "Get ready!"
     // Auto-start countdown after GET_READY_DURATION
     setTimeout(() => {
       setPhase("countdown");
@@ -323,12 +367,14 @@ export default function CapturePage() {
   const handleCancel = () => {
     countdown.pause();
     stopCamera();
+    stopVoice(); // Stop any ongoing voice guidance
     resetSession();
     router.push("/");
   };
 
   const handleBackToAttract = () => {
     countdown.pause();
+    stopVoice(); // Stop any ongoing voice guidance
     setPhase("attract");
   };
 

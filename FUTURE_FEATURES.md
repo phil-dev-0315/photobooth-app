@@ -65,7 +65,7 @@
 **Features:**
 - **Animated countdown** with sound effects and visual flair
 - **Pose prompts** - Show guests fun pose suggestions between shots
-- **Voice guidance** - Audio instructions ("Strike a pose!", "3, 2, 1, Smile!")
+- **Voice guidance** - Audio instructions like for example ("Strike a pose!", "3, 2, 1, Smile!")
 - **Live filters preview** - See filters before capture (B&W, vintage, etc.)
 - **Celebration animations** - Confetti/effects after final photo
 - **Touch-to-start** attract screen with event branding

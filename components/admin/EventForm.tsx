@@ -26,6 +26,7 @@ export function EventForm({ initialData, onSubmit, onCancel, isLoading }: EventF
     is_premium_frame_enabled: initialData?.is_premium_frame_enabled || false,
     security_code_enabled: initialData?.security_code_enabled || false,
     security_code: initialData?.security_code || '',
+    voice_guidance_enabled: initialData?.voice_guidance_enabled || false,
   });
 
   const [errors, setErrors] = useState<Partial<Record<keyof EventFormData, string>>>({});
@@ -298,6 +299,48 @@ export function EventForm({ initialData, onSubmit, onCancel, isLoading }: EventF
               This prevents unauthorized use of the photobooth. Share the code only with event staff/operators.
             </p>
           </>
+        )}
+      </div>
+
+      {/* Interactive Experience Settings */}
+      <div className="bg-white rounded-lg shadow p-6 space-y-4">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Interactive Experience</h3>
+
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="voice_guidance_enabled"
+            name="voice_guidance_enabled"
+            checked={formData.voice_guidance_enabled}
+            onChange={handleChange}
+            className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+          />
+          <label htmlFor="voice_guidance_enabled" className="text-sm font-medium text-gray-700">
+            Enable voice guidance
+          </label>
+        </div>
+
+        {formData.voice_guidance_enabled && (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+              </svg>
+              <div>
+                <p className="text-sm font-medium text-green-800">Audio Instructions Enabled</p>
+                <p className="text-sm text-green-600 mt-1">
+                  Guests will hear voice prompts during the capture experience:
+                </p>
+                <ul className="text-sm text-green-600 mt-2 space-y-1 list-disc list-inside">
+                  <li>&quot;Get ready!&quot; before the countdown starts</li>
+                  <li>Countdown: &quot;3, 2, 1&quot;</li>
+                  <li>&quot;Smile!&quot; at capture moment</li>
+                  <li>Encouraging phrases between photos</li>
+                  <li>&quot;All done!&quot; after the session</li>
+                </ul>
+              </div>
+            </div>
+          </div>
         )}
       </div>
 

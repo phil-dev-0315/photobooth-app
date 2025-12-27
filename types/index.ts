@@ -15,6 +15,7 @@ export interface Event {
   is_premium_frame_enabled: boolean; // Enable premium overlay frames for this event
   security_code_enabled: boolean; // Require security code to start session
   security_code: string | null; // The security code for this event
+  voice_guidance_enabled: boolean; // Enable voice instructions during capture
   created_at: string;
   updated_at: string;
 }
@@ -33,6 +34,7 @@ export interface EventFormData {
   is_premium_frame_enabled?: boolean;
   security_code_enabled?: boolean;
   security_code?: string;
+  voice_guidance_enabled?: boolean;
 }
 
 // Placeholder for photo positioning
