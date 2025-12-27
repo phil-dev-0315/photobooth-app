@@ -15,7 +15,6 @@ import { FlashOverlay, CaptureIndicator } from "@/components/capture/FlashOverla
 import { PosePrompt } from "@/components/capture/PosePrompt";
 import { CelebrationOverlay } from "@/components/capture/CelebrationOverlay";
 import { GetReadyOverlay } from "@/components/capture/GetReadyOverlay";
-import { CropGuideOverlay } from "@/components/capture/CropGuideOverlay";
 import { AttractScreen } from "@/components/AttractScreen";
 import { Button } from "@/components/ui/Button";
 import SecurityCodeGate from "@/components/capture/SecurityCodeGate";
@@ -108,7 +107,7 @@ export default function CapturePage() {
     switchCamera,
     currentFacingMode,
   } = useCamera({
-    facingMode: "user",
+    facingMode: "environment",
   });
 
   // --- Projection Logic Start ---
@@ -373,21 +372,16 @@ export default function CapturePage() {
 
   return (
     <main className="full-screen relative bg-black overflow-hidden">
-      {/* Camera Preview */}
+      {/* Camera Preview - fitted to placeholder aspect ratio */}
       <CameraPreview
         ref={videoRef}
         isReady={isCameraReady}
         isMirrored={currentFacingMode === "user"}
-      />
-
-      {/* Crop Guide Overlay - shows safe zone during capture */}
-      <CropGuideOverlay
         placeholderAspectRatio={
           layout?.placeholders?.[0]
             ? layout.placeholders[0].width / layout.placeholders[0].height
-            : 4 / 3
+            : undefined
         }
-        isVisible={phase === "countdown" || phase === "between" || phase === "capturing"}
       />
 
       {/* Attract Screen (shown when camera is ready, before session starts) */}
