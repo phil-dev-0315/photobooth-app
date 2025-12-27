@@ -18,9 +18,12 @@ export const CameraPreview = forwardRef<HTMLVideoElement, CameraPreviewProps>(
 
     // Calculate preview dimensions based on aspect ratio
     useEffect(() => {
-      if (!placeholderAspectRatio) return;
-
       const updateDimensions = () => {
+        if (!placeholderAspectRatio) {
+          setDimensions({ width: 0, height: 0 });
+          return;
+        }
+
         const availableWidth = window.innerWidth * (1 - padding * 2);
         const availableHeight = window.innerHeight * (1 - padding * 2);
 
@@ -56,100 +59,69 @@ export const CameraPreview = forwardRef<HTMLVideoElement, CameraPreviewProps>(
 
     return (
       <div className={`absolute inset-0 w-full h-full overflow-hidden bg-black ${className}`}>
-        {useFittedPreview ? (
-          <>
-            {/* Blurred background video */}
-            <video
-              ref={bgVideoRef}
-              autoPlay
-              playsInline
-              muted
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                width: "100%",
-                height: "100%",
-                objectFit: "cover",
-                transform: `${mirrorTransform} scale(1.1)`,
-                filter: "blur(20px)",
-                opacity: 0.7,
-              }}
-            />
-
-            {/* Main preview video - fitted to aspect ratio */}
-            <div
-              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-lg shadow-2xl"
-              style={{
-                width: dimensions.width,
-                height: dimensions.height,
-              }}
-            >
-              <video
-                ref={ref}
-                autoPlay
-                playsInline
-                muted
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover",
-                  transform: mirrorTransform,
-                }}
-              />
-
-              {/* Corner frame guides on the fitted preview */}
-              {isReady && (
-                <div className="absolute inset-4 pointer-events-none z-20">
-                  {/* Top left corner */}
-                  <div className="absolute top-0 left-0 w-10 h-10 border-l-4 border-t-4 border-white/40 rounded-tl-lg" />
-                  {/* Top right corner */}
-                  <div className="absolute top-0 right-0 w-10 h-10 border-r-4 border-t-4 border-white/40 rounded-tr-lg" />
-                  {/* Bottom left corner */}
-                  <div className="absolute bottom-0 left-0 w-10 h-10 border-l-4 border-b-4 border-white/40 rounded-bl-lg" />
-                  {/* Bottom right corner */}
-                  <div className="absolute bottom-0 right-0 w-10 h-10 border-r-4 border-b-4 border-white/40 rounded-br-lg" />
-                </div>
-              )}
-            </div>
-          </>
-        ) : (
-          <>
-            {/* Fallback: Original full-screen preview (when no aspect ratio provided) */}
-            <video
-              ref={ref}
-              autoPlay
-              playsInline
-              muted
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                width: "100%",
-                height: "100%",
-                objectFit: "cover",
-                transform: mirrorTransform,
-              }}
-            />
-
-            {/* Camera frame guide - subtle corners (original behavior) */}
-            {isReady && (
-              <div className="absolute inset-8 pointer-events-none z-20">
-                {/* Top left corner */}
-                <div className="absolute top-0 left-0 w-12 h-12 border-l-4 border-t-4 border-white/30 rounded-tl-lg" />
-                {/* Top right corner */}
-                <div className="absolute top-0 right-0 w-12 h-12 border-r-4 border-t-4 border-white/30 rounded-tr-lg" />
-                {/* Bottom left corner */}
-                <div className="absolute bottom-0 left-0 w-12 h-12 border-l-4 border-b-4 border-white/30 rounded-bl-lg" />
-                {/* Bottom right corner */}
-                <div className="absolute bottom-0 right-0 w-12 h-12 border-r-4 border-b-4 border-white/30 rounded-br-lg" />
-              </div>
-            )}
-          </>
+        {/* Blurred background video - only shown in fitted mode */}
+        {useFittedPreview && (
+          <video
+            ref={bgVideoRef}
+            autoPlay
+            playsInline
+            muted
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              transform: `${mirrorTransform} scale(1.1)`,
+              filter: "blur(20px)",
+              opacity: 0.7,
+            }}
+          />
         )}
+
+        {/* Main video container - ALWAYS rendered, styling changes based on mode */}
+        <div
+          className={useFittedPreview
+            ? "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-lg shadow-2xl"
+            : "absolute inset-0"
+          }
+          style={useFittedPreview ? {
+            width: dimensions.width,
+            height: dimensions.height,
+          } : undefined}
+        >
+          {/* Main preview video - ALWAYS the same element */}
+          <video
+            ref={ref}
+            autoPlay
+            playsInline
+            muted
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              transform: mirrorTransform,
+            }}
+          />
+
+          {/* Corner frame guides */}
+          {isReady && (
+            <div className={useFittedPreview ? "absolute inset-4 pointer-events-none z-20" : "absolute inset-8 pointer-events-none z-20"}>
+              {/* Top left corner */}
+              <div className={`absolute top-0 left-0 ${useFittedPreview ? "w-10 h-10" : "w-12 h-12"} border-l-4 border-t-4 ${useFittedPreview ? "border-white/40" : "border-white/30"} rounded-tl-lg`} />
+              {/* Top right corner */}
+              <div className={`absolute top-0 right-0 ${useFittedPreview ? "w-10 h-10" : "w-12 h-12"} border-r-4 border-t-4 ${useFittedPreview ? "border-white/40" : "border-white/30"} rounded-tr-lg`} />
+              {/* Bottom left corner */}
+              <div className={`absolute bottom-0 left-0 ${useFittedPreview ? "w-10 h-10" : "w-12 h-12"} border-l-4 border-b-4 ${useFittedPreview ? "border-white/40" : "border-white/30"} rounded-bl-lg`} />
+              {/* Bottom right corner */}
+              <div className={`absolute bottom-0 right-0 ${useFittedPreview ? "w-10 h-10" : "w-12 h-12"} border-r-4 border-b-4 ${useFittedPreview ? "border-white/40" : "border-white/30"} rounded-br-lg`} />
+            </div>
+          )}
+        </div>
 
         {/* Loading state overlay */}
         <AnimatePresence>

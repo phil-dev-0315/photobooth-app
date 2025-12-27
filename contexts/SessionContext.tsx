@@ -7,7 +7,7 @@ import {
   useCallback,
   ReactNode,
 } from "react";
-import { CapturedPhoto, CropMetadata, Event, SessionContextValue } from "@/types";
+import { CapturedPhoto, CropMetadata, Event, EventLayout, SessionContextValue } from "@/types";
 
 const SessionContext = createContext<SessionContextValue | null>(null);
 
@@ -18,6 +18,7 @@ interface SessionProviderProps {
 export function SessionProvider({ children }: SessionProviderProps) {
   const [eventId, setEventId] = useState<string | null>(null);
   const [event, setEvent] = useState<Event | null>(null);
+  const [selectedLayout, setSelectedLayout] = useState<EventLayout | null>(null);
   const [photos, setPhotos] = useState<CapturedPhoto[]>([]);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -38,6 +39,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
   }, []);
 
   const resetSession = useCallback(() => {
+    setSelectedLayout(null);
     setPhotos([]);
     setMessage(null);
   }, []);
@@ -45,10 +47,12 @@ export function SessionProvider({ children }: SessionProviderProps) {
   const value: SessionContextValue = {
     eventId,
     event,
+    selectedLayout,
     photos,
     message,
     setEventId,
     setEvent,
+    setSelectedLayout,
     addPhoto,
     clearPhotos,
     setMessage,
@@ -72,7 +76,8 @@ export function useSession(): SessionContextValue {
 // Hook for getting capture-specific utilities
 export function useCaptureSession() {
   const session = useSession();
-  const photosPerSession = session.event?.photos_per_session ?? 3;
+  // Photo count is now determined by the selected layout's placeholders
+  const photosPerSession = session.selectedLayout?.placeholders?.length ?? 3;
   const countdownSeconds = session.event?.countdown_seconds ?? 8;
 
   const isSessionComplete = session.photos.length >= photosPerSession;

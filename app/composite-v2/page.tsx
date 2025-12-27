@@ -4,21 +4,19 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSession } from "@/contexts/SessionContext";
-import { getActiveEvent, getEventLayouts, getEventStickers } from "@/lib/events";
+import { getActiveEvent, getEventStickers } from "@/lib/events";
 import PhotoCompositor, { PhotoCompositorHandle } from "@/components/PhotoCompositor";
 import { Button } from "@/components/ui/Button";
 import { useSessionSave } from "@/hooks/useSessionSave";
 import QRCodeDisplay from "@/components/QRCodeDisplay";
 import { PrintOverlay } from "@/components/PrintAnimation";
 import EmailModal from "@/components/EmailModal";
-import type { Event, EventLayout, Sticker, PlacedSticker } from "@/types";
+import type { Event, Sticker, PlacedSticker } from "@/types";
 
 export default function CompositeV2Page() {
   const router = useRouter();
-  const { photos, message, clearPhotos } = useSession();
+  const { photos, message, resetSession, selectedLayout } = useSession();
   const [event, setEvent] = useState<Event | null>(null);
-  const [layouts, setLayouts] = useState<EventLayout[]>([]);
-  const [selectedLayout, setSelectedLayout] = useState<EventLayout | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isDownloading, setIsDownloading] = useState(false);
   const compositorRef = useRef<PhotoCompositorHandle>(null);
@@ -41,7 +39,7 @@ export default function CompositeV2Page() {
     }
   }, [photos.length, router]);
 
-  // Load active event, layouts, and stickers
+  // Load active event and stickers (layout already selected from capture flow)
   useEffect(() => {
     const loadEventData = async () => {
       try {
@@ -50,12 +48,6 @@ export default function CompositeV2Page() {
 
         if (activeEvent) {
           setEvent(activeEvent);
-          const eventLayouts = await getEventLayouts(activeEvent.id);
-          setLayouts(eventLayouts);
-
-          // Select default layout or first layout
-          const defaultLayout = eventLayouts.find((l) => l.is_default) || eventLayouts[0];
-          setSelectedLayout(defaultLayout || null);
 
           // Load stickers if enabled
           if (activeEvent.stickers_enabled) {
@@ -142,10 +134,6 @@ export default function CompositeV2Page() {
     }
   };
 
-  const handleLayoutChange = (layout: EventLayout) => {
-    setSelectedLayout(layout);
-  };
-
   // Save session handler
   const handleSaveSession = async () => {
     if (!compositorRef.current || !event) return;
@@ -175,7 +163,7 @@ export default function CompositeV2Page() {
 
   // Start new session
   const handleNewSession = () => {
-    clearPhotos();
+    resetSession();
     resetSaveState();
     router.push("/capture");
   };
@@ -290,40 +278,6 @@ export default function CompositeV2Page() {
                     Remove Selected Sticker
                   </button>
                 )}
-              </div>
-            )}
-
-            {/* Layout Selection */}
-            {layouts.length > 0 && (
-              <div className="bg-white rounded-lg shadow-lg p-4">
-                <h3 className="text-base font-semibold text-gray-900 mb-3">
-                  Choose Frame
-                </h3>
-                <div className="grid grid-cols-3 gap-2">
-                  {layouts.map((layout) => (
-                    <button
-                      key={layout.id}
-                      onClick={() => handleLayoutChange(layout)}
-                      className={`aspect-square border-2 rounded-lg overflow-hidden transition ${
-                        selectedLayout?.id === layout.id
-                          ? "border-blue-600 ring-2 ring-blue-200"
-                          : "border-gray-200 hover:border-gray-300"
-                      }`}
-                    >
-                      {layout.frame_url ? (
-                        <img
-                          src={layout.frame_url}
-                          alt="Frame preview"
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full bg-gray-100 flex items-center justify-center text-gray-400 text-xs">
-                          No Frame
-                        </div>
-                      )}
-                    </button>
-                  ))}
-                </div>
               </div>
             )}
 
@@ -490,40 +444,6 @@ export default function CompositeV2Page() {
 
             {/* Sidebar */}
             <div className="space-y-6">
-              {/* Layout Selection */}
-              {layouts.length > 0 && (
-                <div className="bg-white rounded-lg shadow-lg p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                    Choose Frame
-                  </h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    {layouts.map((layout) => (
-                      <button
-                        key={layout.id}
-                        onClick={() => handleLayoutChange(layout)}
-                        className={`aspect-square border-2 rounded-lg overflow-hidden transition ${
-                          selectedLayout?.id === layout.id
-                            ? "border-blue-600 ring-2 ring-blue-200"
-                            : "border-gray-200 hover:border-gray-300"
-                        }`}
-                      >
-                        {layout.frame_url ? (
-                          <img
-                            src={layout.frame_url}
-                            alt="Frame preview"
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full bg-gray-100 flex items-center justify-center text-gray-400 text-xs">
-                            No Frame
-                          </div>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               {/* Sticker Panel - Desktop */}
               {event?.stickers_enabled && availableStickers.length > 0 && (
                 <div className="bg-white rounded-lg shadow-lg p-6">

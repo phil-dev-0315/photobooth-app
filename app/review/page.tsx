@@ -1,49 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useSession } from "@/contexts/SessionContext";
-import { getActiveEvent, getEventLayouts } from "@/lib/events";
 import { PhotoGrid } from "@/components/review/PhotoGrid";
 import { Button } from "@/components/ui/Button";
-import type { Event, EventLayout } from "@/types";
 
 export default function ReviewPage() {
   const router = useRouter();
-  const { photos, clearPhotos, updatePhotoCrop } = useSession();
-  const [event, setEvent] = useState<Event | null>(null);
-  const [layout, setLayout] = useState<EventLayout | null>(null);
-  const [isLoadingEvent, setIsLoadingEvent] = useState(true);
+  const { photos, resetSession, updatePhotoCrop, selectedLayout } = useSession();
 
-  // Load active event settings and layout
-  useEffect(() => {
-    const loadEventData = async () => {
-      try {
-        const activeEvent = await getActiveEvent();
-        setEvent(activeEvent);
+  // Photo count is determined by selected layout's placeholders
+  const PHOTOS_PER_SESSION = selectedLayout?.placeholders?.length || 3;
+  const isComplete = photos.length >= PHOTOS_PER_SESSION;
 
-        // Load layout to get placeholder aspect ratio
-        if (activeEvent) {
-          const layouts = await getEventLayouts(activeEvent.id);
-          const defaultLayout = layouts.find((l) => l.is_default) || layouts[0];
-          setLayout(defaultLayout || null);
-        }
-      } catch (error) {
-        console.error("Error loading event:", error);
-      } finally {
-        setIsLoadingEvent(false);
-      }
-    };
-    loadEventData();
-  }, []);
-
-  const PHOTOS_PER_SESSION = event?.photos_per_session || 3;
-  const isComplete = !isLoadingEvent && photos.length >= PHOTOS_PER_SESSION;
-
-  // Calculate placeholder aspect ratio from layout
-  const placeholderAspectRatio = layout?.placeholders?.[0]
-    ? layout.placeholders[0].width / layout.placeholders[0].height
+  // Calculate placeholder aspect ratio from selected layout
+  const placeholderAspectRatio = selectedLayout?.placeholders?.[0]
+    ? selectedLayout.placeholders[0].width / selectedLayout.placeholders[0].height
     : 4 / 3; // Default to 4:3
 
   // Redirect if no photos
@@ -54,7 +28,7 @@ export default function ReviewPage() {
   }, [photos.length, router]);
 
   const handleRetake = () => {
-    clearPhotos();
+    resetSession();
     router.push("/capture");
   };
 
@@ -77,11 +51,7 @@ export default function ReviewPage() {
         <div className="max-w-md mx-auto flex items-center justify-between">
           <h1 className="text-xl font-bold text-gray-900">Review Photos</h1>
           <span className="text-sm text-gray-500">
-            {isLoadingEvent ? (
-              <span className="inline-block w-12 h-4 bg-gray-200 rounded animate-pulse" />
-            ) : (
-              `${photos.length} / ${PHOTOS_PER_SESSION}`
-            )}
+            {photos.length} / {PHOTOS_PER_SESSION}
           </span>
         </div>
       </motion.header>

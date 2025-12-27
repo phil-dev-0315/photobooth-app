@@ -9,7 +9,6 @@ interface PlaceholderEditorProps {
   height: number;
   placeholders: PhotoPlaceholder[];
   onChange: (placeholders: PhotoPlaceholder[]) => void;
-  photosPerSession: number;
 }
 
 type DragMode = "none" | "draw" | "move" | "resize";
@@ -21,7 +20,6 @@ export default function PlaceholderEditor({
   height,
   placeholders,
   onChange,
-  photosPerSession,
 }: PlaceholderEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
@@ -288,18 +286,18 @@ export default function PlaceholderEditor({
     updatePlaceholder(index, { shape: newShape });
   };
 
-  // Generate default placeholders
-  const generateDefaults = () => {
+  // Generate default placeholders (default 3, but user can add/remove)
+  const generateDefaults = (count: number = 3) => {
     const padding = Math.round(width * 0.05);
     const photoWidth = width - (padding * 2);
     const photoHeight = Math.round(photoWidth * 0.75);
     const spacing = Math.round(height * 0.02);
 
-    const totalPhotosHeight = (photoHeight * photosPerSession) + (spacing * (photosPerSession - 1));
+    const totalPhotosHeight = (photoHeight * count) + (spacing * (count - 1));
     const startY = Math.round((height - totalPhotosHeight) / 2);
 
     const newPlaceholders: PhotoPlaceholder[] = [];
-    for (let i = 0; i < photosPerSession; i++) {
+    for (let i = 0; i < count; i++) {
       newPlaceholders.push({
         x: padding,
         y: startY + (i * (photoHeight + spacing)),
@@ -363,16 +361,20 @@ export default function PlaceholderEditor({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h4 className="text-sm font-medium text-gray-900">
-          Photo Placeholders ({placeholders.length}/{photosPerSession})
+          Photo Placeholders ({placeholders.length})
         </h4>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={generateDefaults}
-            className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded hover:bg-blue-200"
-          >
-            Auto-Generate
-          </button>
+        <div className="flex gap-2 flex-wrap">
+          <span className="text-xs text-gray-500 self-center">Auto:</span>
+          {[1, 2, 3, 4].map((count) => (
+            <button
+              key={count}
+              type="button"
+              onClick={() => generateDefaults(count)}
+              className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200"
+            >
+              {count} slot{count > 1 ? 's' : ''}
+            </button>
+          ))}
           <button
             type="button"
             onClick={() => onChange([])}
@@ -669,15 +671,15 @@ export default function PlaceholderEditor({
         </div>
       )}
 
-      {placeholders.length < photosPerSession && (
+      {placeholders.length === 0 && (
         <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded">
-          ⚠️ You need {photosPerSession - placeholders.length} more placeholder(s) for {photosPerSession} photos.
+          Add at least one placeholder to define where photos will appear.
         </p>
       )}
 
-      {placeholders.length >= photosPerSession && (
+      {placeholders.length > 0 && (
         <p className="text-xs text-green-600 bg-green-50 p-2 rounded">
-          ✓ All {photosPerSession} placeholders defined. Ready to save!
+          {placeholders.length} photo slot{placeholders.length > 1 ? 's' : ''} defined. This frame will capture {placeholders.length} photo{placeholders.length > 1 ? 's' : ''}.
         </p>
       )}
     </div>

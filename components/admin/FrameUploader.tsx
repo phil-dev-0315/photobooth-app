@@ -8,7 +8,6 @@ import type { PhotoPlaceholder, EventLayout, FrameOverlay } from "@/types";
 
 interface FrameUploaderProps {
   eventId: string;
-  photosPerSession: number;
   existingLayouts: EventLayout[];
   onUploadComplete: () => void;
   isPremiumFrameEnabled?: boolean;
@@ -16,9 +15,85 @@ interface FrameUploaderProps {
 
 type UploadStep = "select" | "configure" | "uploading" | "editing";
 
+// Compress image to reduce file size
+async function compressImage(file: File, maxSizeMB: number = 8): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        // Calculate if compression is needed
+        const fileSizeMB = file.size / (1024 * 1024);
+        if (fileSizeMB <= maxSizeMB) {
+          resolve(file); // No compression needed
+          return;
+        }
+
+        // Create canvas for compression
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Could not create canvas context'));
+          return;
+        }
+
+        // Calculate new dimensions (reduce if very large)
+        let { width, height } = img;
+        const maxDimension = 4096; // Max 4K resolution
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = (height / width) * maxDimension;
+            width = maxDimension;
+          } else {
+            width = (width / height) * maxDimension;
+            height = maxDimension;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Determine output format and quality
+        const isPng = file.type === 'image/png';
+        let quality = 0.9;
+
+        const tryCompress = (q: number) => {
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) {
+                reject(new Error('Failed to compress image'));
+                return;
+              }
+
+              const blobSizeMB = blob.size / (1024 * 1024);
+              if (blobSizeMB > maxSizeMB && q > 0.5) {
+                // Try again with lower quality
+                tryCompress(q - 0.1);
+              } else {
+                const compressedFile = new File([blob], file.name, {
+                  type: isPng ? 'image/png' : 'image/jpeg',
+                });
+                resolve(compressedFile);
+              }
+            },
+            isPng ? 'image/png' : 'image/jpeg',
+            isPng ? undefined : q
+          );
+        };
+
+        tryCompress(quality);
+      };
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function FrameUploader({
   eventId,
-  photosPerSession,
   existingLayouts,
   onUploadComplete,
   isPremiumFrameEnabled = false,
@@ -93,8 +168,11 @@ export default function FrameUploader({
     setStep("uploading");
 
     try {
+      // Compress image if too large
+      const compressedFile = await compressImage(selectedFile, 8);
+
       const formData = new FormData();
-      formData.append("file", selectedFile);
+      formData.append("file", compressedFile);
       formData.append("bucket", "frames");
       formData.append("eventId", eventId);
       formData.append("assetType", "frame");
@@ -365,7 +443,6 @@ export default function FrameUploader({
             height={height}
             placeholders={placeholders}
             onChange={setPlaceholders}
-            photosPerSession={photosPerSession}
           />
 
           {/* Overlay Editor - only show if premium frames enabled */}
@@ -451,7 +528,6 @@ export default function FrameUploader({
             height={height}
             placeholders={placeholders}
             onChange={setPlaceholders}
-            photosPerSession={photosPerSession}
           />
 
           {/* Overlay Editor - only show if premium frames enabled */}

@@ -342,23 +342,23 @@ export default function OverlayEditor({
                     />
                   ))}
                   {/* Edge handles */}
-                  {(["n", "s", "e", "w"] as ResizeHandle[]).map((handle) => (
-                    <div
-                      key={handle}
-                      className="absolute bg-amber-500 border border-white rounded-sm cursor-pointer"
-                      style={{
-                        ...(handle === "n" || handle === "s"
-                          ? { left: "50%", transform: "translateX(-50%)", width: 12, height: 6 }
-                          : { top: "50%", transform: "translateY(-50%)", width: 6, height: 12 }),
-                        top: handle === "n" ? -3 : handle === "s" ? "auto" : undefined,
-                        bottom: handle === "s" ? -3 : undefined,
-                        left: handle === "w" ? -3 : handle === "e" ? "auto" : undefined,
-                        right: handle === "e" ? -3 : undefined,
-                        cursor: handle === "n" || handle === "s" ? "ns-resize" : "ew-resize",
-                      }}
-                      onMouseDown={(e) => handleMouseDown(e, overlay, "resize", handle)}
-                    />
-                  ))}
+                  {(["n", "s", "e", "w"] as ResizeHandle[]).map((handle) => {
+                    // Define position styles for each edge handle
+                    const edgeStyles: Record<string, React.CSSProperties> = {
+                      n: { top: -3, left: "50%", transform: "translateX(-50%)", width: 12, height: 6, cursor: "ns-resize" },
+                      s: { bottom: -3, left: "50%", transform: "translateX(-50%)", width: 12, height: 6, cursor: "ns-resize" },
+                      e: { right: -3, top: "50%", transform: "translateY(-50%)", width: 6, height: 12, cursor: "ew-resize" },
+                      w: { left: -3, top: "50%", transform: "translateY(-50%)", width: 6, height: 12, cursor: "ew-resize" },
+                    };
+                    return (
+                      <div
+                        key={handle}
+                        className="absolute bg-amber-500 border border-white rounded-sm cursor-pointer"
+                        style={edgeStyles[handle]}
+                        onMouseDown={(e) => handleMouseDown(e, overlay, "resize", handle)}
+                      />
+                    );
+                  })}
                   {/* Delete button */}
                   <button
                     className="absolute -top-3 -right-3 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600"

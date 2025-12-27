@@ -8,7 +8,6 @@ import { useCountdown } from "@/hooks/useCountdown";
 import { useCameraSound } from "@/hooks/useCameraSound";
 import { useSession } from "@/contexts/SessionContext";
 import { getActiveEvent, getEventLayouts } from "@/lib/events";
-import type { EventLayout } from "@/types";
 import { CameraPreview } from "@/components/capture/CameraPreview";
 import { Countdown } from "@/components/capture/Countdown";
 import { StartSessionButton } from "@/components/capture/CaptureButton";
@@ -16,10 +15,11 @@ import { FlashOverlay, CaptureIndicator } from "@/components/capture/FlashOverla
 import { PosePrompt } from "@/components/capture/PosePrompt";
 import { CelebrationOverlay } from "@/components/capture/CelebrationOverlay";
 import { GetReadyOverlay } from "@/components/capture/GetReadyOverlay";
+import { FrameSelector } from "@/components/capture/FrameSelector";
 import { AttractScreen } from "@/components/AttractScreen";
 import { Button } from "@/components/ui/Button";
 import SecurityCodeGate from "@/components/capture/SecurityCodeGate";
-import { CapturedPhoto, Event } from "@/types";
+import { CapturedPhoto, Event, EventLayout } from "@/types";
 
 // Add these types to handle the experimental Multi-Screen Window Placement API
 interface ScreenDetailed extends Screen {
@@ -42,7 +42,7 @@ declare global {
   }
 }
 
-type CapturePhase = "attract" | "getready" | "countdown" | "capturing" | "between" | "complete";
+type CapturePhase = "frameselect" | "attract" | "getready" | "countdown" | "capturing" | "between" | "complete";
 
 const BETWEEN_PHOTOS_DELAY = 1500; // ms before showing pose prompt
 const POSE_PROMPT_DURATION = 3000; // ms to show pose prompt
@@ -50,24 +50,28 @@ const GET_READY_DURATION = 3000; // ms to show "Get Ready"
 
 export default function CapturePage() {
   const router = useRouter();
-  const { addPhoto, clearPhotos, photos } = useSession();
+  const { addPhoto, resetSession, photos, setSelectedLayout, selectedLayout } = useSession();
   const [event, setEvent] = useState<Event | null>(null);
-  const [layout, setLayout] = useState<EventLayout | null>(null);
+  const [layouts, setLayouts] = useState<EventLayout[]>([]);
   const [isLoadingEvent, setIsLoadingEvent] = useState(true);
   const [isCodeVerified, setIsCodeVerified] = useState(false);
 
-  // Load active event settings and layout
+  // Load active event settings and all layouts
   useEffect(() => {
     const loadEventData = async () => {
       try {
         const activeEvent = await getActiveEvent();
         setEvent(activeEvent);
 
-        // Load layout to get placeholder aspect ratio for crop guide
+        // Load all layouts for frame selection
         if (activeEvent) {
-          const layouts = await getEventLayouts(activeEvent.id);
-          const defaultLayout = layouts.find((l) => l.is_default) || layouts[0];
-          setLayout(defaultLayout || null);
+          const eventLayouts = await getEventLayouts(activeEvent.id);
+          setLayouts(eventLayouts);
+
+          // If only one layout, auto-select it and skip frame selector
+          if (eventLayouts.length === 1) {
+            setSelectedLayout(eventLayouts[0]);
+          }
         }
       } catch (error) {
         console.error("Error loading event:", error);
@@ -76,13 +80,14 @@ export default function CapturePage() {
       }
     };
     loadEventData();
-  }, []);
+  }, [setSelectedLayout]);
 
-  // Use event settings or defaults
-  const PHOTOS_PER_SESSION = event?.photos_per_session || 3;
+  // Photo count is determined by selected layout's placeholders
+  const PHOTOS_PER_SESSION = selectedLayout?.placeholders?.length || 3;
   const COUNTDOWN_SECONDS = event?.countdown_seconds || 5;
 
-  const [phase, setPhase] = useState<CapturePhase>("attract");
+  // Start with frameselect if multiple layouts, otherwise attract (single layout auto-selected)
+  const [phase, setPhase] = useState<CapturePhase>("frameselect");
   const [isFlashing, setIsFlashing] = useState(false);
   const [lastCapturedPhoto, setLastCapturedPhoto] = useState<string | null>(null);
   const [showIndicator, setShowIndicator] = useState(false);
@@ -90,11 +95,17 @@ export default function CapturePage() {
 
   // Use ref to track photo count to avoid stale closures
   const photoCountRef = useRef(0);
+  // Use ref for PHOTOS_PER_SESSION to avoid stale closures in callbacks
+  const photosPerSessionRef = useRef(PHOTOS_PER_SESSION);
 
-  // Keep ref in sync with photos array
+  // Keep refs in sync
   useEffect(() => {
     photoCountRef.current = photos.length;
   }, [photos.length]);
+
+  useEffect(() => {
+    photosPerSessionRef.current = PHOTOS_PER_SESSION;
+  }, [PHOTOS_PER_SESSION]);
 
   const currentPhotoIndex = photos.length;
 
@@ -193,11 +204,12 @@ export default function CapturePage() {
       setLastCapturedPhoto(photoDataUrl);
       setShowIndicator(true);
 
-      // Use the ref value + 1 for the count after adding this photo
+      // Use the ref values to avoid stale closures
       const newPhotoCount = photoCountRef.current + 1;
+      const targetPhotoCount = photosPerSessionRef.current;
 
       // Check if we have all photos
-      if (newPhotoCount >= PHOTOS_PER_SESSION) {
+      if (newPhotoCount >= targetPhotoCount) {
         setPhase("complete");
         // Navigate to review after a short delay
         setTimeout(() => {
@@ -251,9 +263,9 @@ export default function CapturePage() {
   const requiresSecurityCode = event?.security_code_enabled && event?.security_code;
   const canProceed = !requiresSecurityCode || isCodeVerified;
 
-  // Initialize on mount: clear photos
+  // Initialize on mount: reset session (clear photos and selectedLayout)
   useEffect(() => {
-    clearPhotos();
+    resetSession();
     photoCountRef.current = 0;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -291,6 +303,11 @@ export default function CapturePage() {
   };
 
   const handleAttractScreenTap = () => {
+    // Don't start capture if no layout selected
+    if (!selectedLayout) {
+      console.warn("Cannot start capture: no layout selected");
+      return;
+    }
     setPhase("getready");
     // Auto-start countdown after GET_READY_DURATION
     setTimeout(() => {
@@ -306,7 +323,7 @@ export default function CapturePage() {
   const handleCancel = () => {
     countdown.pause();
     stopCamera();
-    clearPhotos();
+    resetSession();
     router.push("/");
   };
 
@@ -314,6 +331,18 @@ export default function CapturePage() {
     countdown.pause();
     setPhase("attract");
   };
+
+  const handleFrameSelect = (layout: EventLayout) => {
+    setSelectedLayout(layout);
+    setPhase("attract");
+  };
+
+  // Auto-transition from frameselect to attract when layout is already selected (single layout case)
+  useEffect(() => {
+    if (phase === "frameselect" && selectedLayout && layouts.length <= 1) {
+      setPhase("attract");
+    }
+  }, [phase, selectedLayout, layouts.length]);
 
   // Loading state
   if (isLoadingEvent) {
@@ -384,15 +413,26 @@ export default function CapturePage() {
         isReady={isCameraReady}
         isMirrored={currentFacingMode === "user"}
         placeholderAspectRatio={
-          layout?.placeholders?.[0]
-            ? layout.placeholders[0].width / layout.placeholders[0].height
+          selectedLayout?.placeholders?.[0]
+            ? selectedLayout.placeholders[0].width / selectedLayout.placeholders[0].height
             : undefined
         }
       />
 
-      {/* Attract Screen (shown when camera is ready, before session starts) */}
+      {/* Frame Selector (shown before attract if multiple layouts) */}
       <AnimatePresence>
-        {phase === "attract" && isCameraReady && event && (
+        {phase === "frameselect" && layouts.length > 1 && (
+          <FrameSelector
+            layouts={layouts}
+            onSelect={handleFrameSelect}
+            eventName={event?.name}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Attract Screen (shown when camera is ready and layout is selected) */}
+      <AnimatePresence>
+        {phase === "attract" && isCameraReady && event && selectedLayout && (
           <AttractScreen event={event} onStart={handleAttractScreenTap} />
         )}
       </AnimatePresence>
@@ -429,7 +469,7 @@ export default function CapturePage() {
 
       {/* Photo counter (visible during active capture) */}
       <AnimatePresence>
-        {phase !== "attract" && phase !== "getready" && phase !== "complete" && (
+        {phase !== "frameselect" && phase !== "attract" && phase !== "getready" && phase !== "complete" && (
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}

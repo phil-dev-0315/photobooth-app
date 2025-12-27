@@ -5,7 +5,7 @@ export interface Event {
   event_date: string | null;
   event_type: 'wedding' | 'birthday' | 'christening' | 'corporate' | 'other';
   is_active: boolean;
-  photos_per_session: number;
+  photos_per_session?: number; // Deprecated: now determined by frame placeholders
   countdown_seconds: number;
   message_enabled: boolean;
   message_char_limit: number;
@@ -24,7 +24,7 @@ export interface EventFormData {
   event_date: string | null;
   event_type: 'wedding' | 'birthday' | 'christening' | 'corporate' | 'other';
   is_active: boolean;
-  photos_per_session: number;
+  photos_per_session?: number; // Deprecated: now determined by frame placeholders
   countdown_seconds: number;
   message_enabled: boolean;
   message_char_limit: number;
@@ -126,10 +126,12 @@ export interface CameraState {
 export interface SessionContextValue {
   eventId: string | null;
   event: Event | null;
+  selectedLayout: EventLayout | null;
   photos: CapturedPhoto[];
   message: string | null;
   setEventId: (id: string | null) => void;
   setEvent: (event: Event | null) => void;
+  setSelectedLayout: (layout: EventLayout | null) => void;
   addPhoto: (photo: CapturedPhoto) => void;
   clearPhotos: () => void;
   setMessage: (message: string | null) => void;

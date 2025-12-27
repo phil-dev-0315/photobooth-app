@@ -132,7 +132,6 @@ export default function EventAssetsPage() {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <FrameUploader
             eventId={eventId}
-            photosPerSession={event.photos_per_session}
             existingLayouts={frameLayouts}
             onUploadComplete={loadData}
             isPremiumFrameEnabled={event.is_premium_frame_enabled}
