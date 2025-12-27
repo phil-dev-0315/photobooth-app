@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useCamera } from "@/hooks/useCamera";
 import { useCountdown } from "@/hooks/useCountdown";
+import { useCameraSound } from "@/hooks/useCameraSound";
 import { useSession } from "@/contexts/SessionContext";
 import { getActiveEvent, getEventLayouts } from "@/lib/events";
 import type { EventLayout } from "@/types";
@@ -110,6 +111,9 @@ export default function CapturePage() {
     facingMode: "environment",
   });
 
+  // Camera sound effects
+  const { playShutterSound } = useCameraSound({ volume: 0.6 });
+
   // --- Projection Logic Start ---
   const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
 
@@ -170,7 +174,9 @@ export default function CapturePage() {
   const handleCaptureComplete = useCallback(() => {
     // Close projection window before capture to avoid infinite mirror or interference
     handleDualScreenCapture();
-    // Trigger flash
+
+    // Play shutter sound and trigger flash
+    playShutterSound();
     setIsFlashing(true);
 
     // Capture the photo
@@ -212,7 +218,7 @@ export default function CapturePage() {
         }, BETWEEN_PHOTOS_DELAY);
       }
     }
-  }, [capturePhoto, addPhoto, router]);
+  }, [capturePhoto, addPhoto, router, playShutterSound]);
 
   const countdown = useCountdown({
     initialSeconds: COUNTDOWN_SECONDS,
